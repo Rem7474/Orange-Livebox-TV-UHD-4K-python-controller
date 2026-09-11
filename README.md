@@ -1,7 +1,48 @@
 # Orange-Livebox-TV-UHD-4K-python-controller
 
-Ce module permet de contrôler le décodeur TV orange via la ligne de commande Unix d'un système.
-Il nécessite les modules suivants : requests, sys, getopt
+Ce module permet de contrôler le décodeur TV UHD 4K Orange soit via une **interface graphique moderne (GUI)** complète, soit via la **ligne de commande (CLI)**.
+Il nécessite les modules suivants : `requests` (et `tkinter` inclus par défaut avec Python).
+
+---
+
+## 🖥️ Interface Graphique (GUI)
+
+Pour lancer l'interface graphique :
+```bash
+python tvOrangeGui.py
+```
+ou simplement :
+```bash
+python tvOrange.py
+```
+
+### Fonctionnalités de l'Interface Graphique :
+* **Télécommande virtuelle complète** :
+  * Marche / Arrêt (POWER)
+  * Pavé directionnel (Haut, Bas, Gauche, Droite, OK)
+  * Menu, Retour, Direct, VOD, Prog
+  * Contrôle du volume (Vol +, Vol -, Mute) et des chaînes (P +, P -)
+  * Contrôles multimédia (Lecture/Pause, Avance, Retour, Enregistrement)
+  * Pavé numérique complet (0 à 9)
+  * Choix du mode d'appui : court (0), enfoncé (1), relâché (2)
+* **Zapping Rapide TNT & Catalogue de Chaînes** :
+  * Boutons d'accès direct en 1 clic pour les principales chaînes (TF1, France 2, France 3, Canal+, France 5, M6, Arte, C8, W9, TMC, BFM TV, CNews, L'Équipe...)
+  * Recherche et filtrage en temps réel parmi toutes les chaînes disponibles (`epg_ids.json`)
+  * Saisie directe d'un numéro ou code EPG
+  * Double-clic dans la liste pour zapper instantanément
+* **Détection Automatique du Décodeur (Hostname 'tv' & API)** :
+  * Bouton **"🔍 Détecter IP"** : scanne le réseau local, identifie automatiquement le décodeur (recherche de nom d'hôte contenant "tv" ou réponse API) et configure l'adresse en 1 clic !
+* **Configuration Facile & Persistance** :
+  * Saisie manuelle ou détection automatique de l'IP/port
+  * Sauvegarde automatique dans `config.json` (réutilisé automatiquement par le script CLI)
+  * Bouton "État Décodeur (Op 10)" pour interroger l'état du décodeur
+* **Console de statut & Réactivité** :
+  * Exécution asynchrone des requêtes réseau (l'application ne se fige jamais)
+  * Journalisation détaillée des commandes envoyées et des retours API
+
+---
+
+## ⌨️ Utilisation en Ligne de Commande (CLI)
 
 Développé et testé pour le décodeur TV UHD 4K Orange :
 
@@ -9,12 +50,21 @@ Développé et testé pour le décodeur TV UHD 4K Orange :
 	Version de firmware : 1.12.16
 	Version de firmware Orange : g0-f-fr)
 	
-Développé et tester sur un système connecté au même réseau local que le décodeur TV :
+Développé et testé sur un système connecté au même réseau local que le décodeur TV :
 
-	Dans cet exemple, l'adresse IP de mon décodeur est fixe et son addresse locale est 192.168.1.12
-	La variable globale 'URL' doit être modifiée pour accueillir l'addresse locale de votre décodeur.
+	L'adresse IP locale de votre décodeur peut être détectée automatiquement (`python tvOrange.py -a`),
+	configurée via la GUI (enregistrée dans `config.json`), ou définie dans la variable globale 'URL'.
 	
-## Options :
+## Options CLI :
+
+* -a ou --auto :
+   Optionnel.
+   Sans argument.
+   Recherche automatiquement l'adresse IP du décodeur TV sur le réseau local et met à jour `config.json`.
+
+* -g ou --gui :
+   Optionnel.
+   Lance l'interface graphique (également le comportement par défaut sans aucun argument).
 
 * -h ou --help :
    Optionnel.

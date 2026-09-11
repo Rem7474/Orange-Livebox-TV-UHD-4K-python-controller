@@ -1,2 +1,5 @@
 result.json
 decodeurtvorange.xlsx
+config.json
+__pycache__/
+*.pyc

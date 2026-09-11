@@ -20,6 +20,16 @@ Options :
 		Sans argument.
 		Permet d'afficher cette docstring.
 		
+	-g ou --gui :
+		Optionnel.
+		Sans argument.
+		Lance l'interface graphique (également lancée par défaut sans aucun argument).
+
+	-a ou --auto :
+		Optionnel.
+		Sans argument.
+		Recherche automatiquement l'adresse IP du décodeur TV sur le réseau local et met à jour config.json.
+
 	-v ou --verbose :
 		Optionnel.
 		Sans argument.
@@ -71,18 +81,56 @@ This decoder is a french product, so I didn't translate this docstring in englis
 """
 
 # importing the requests library 
-import requests, sys, getopt, json
+import requests, sys, getopt, json, os
 
 # initialisation de la 
 VERBOSE = False
 
 # api-endpoint 
-URL = "http://192.168.1.12:8080/remoteControl/cmd"
+URL = "http://192.168.1.15:8080/remoteControl/cmd"
 KEYS_FILE = "keys.json"
 EPG_IDS_FILE = "epg_ids.json"
+CONFIG_FILE = "config.json"
+
+# Chargement de la configuration si disponible
+if os.path.exists(CONFIG_FILE):
+	try:
+		with open(CONFIG_FILE, "r", encoding="utf-8") as _cfg_file:
+			_cfg = json.load(_cfg_file)
+			_ip = _cfg.get("ip", "192.168.1.15")
+			_port = _cfg.get("port", "8080")
+			URL = f"http://{_ip}:{_port}/remoteControl/cmd"
+	except Exception:
+		pass
 
 
 def main(argv):	
+	if len(argv) == 0 or (len(argv) == 1 and argv[0] in ('-g', '--gui')):
+		try:
+			import tvOrangeGui
+			tvOrangeGui.main()
+			sys.exit(0)
+		except Exception as e:
+			printError(f"Erreur lors du lancement de l'interface graphique : {e}")
+			sys.exit(1)
+
+	if len(argv) == 1 and argv[0] in ('-a', '--auto'):
+		print("Recherche automatique du décodeur TV sur le réseau...")
+		from tvOrangeGui import discover_decoder_ip
+		ip, port, info = discover_decoder_ip(lambda m: print(f"  {m}"))
+		if ip:
+			print(f"\nDécodeur TV trouvé avec succès !")
+			print(f"  Adresse IP : {ip}")
+			print(f"  Port       : {port}")
+			print(f"  Détail     : {info}")
+			with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+				json.dump({"ip": ip, "port": port}, f, indent=2)
+			print(f"Configuration sauvegardée dans '{CONFIG_FILE}'.")
+			sys.exit(0)
+		else:
+			printError("Aucun décodeur TV détecté sur le réseau local.")
+			sys.exit(1)
+
 	opts, args = checkArgs(argv)
 	
 	checkIfArgsAreEmpty(args)
@@ -126,7 +174,7 @@ def checkArgs(argv):
 	global VERBOSE
 	
 	try:                                
-		opts, args = getopt.getopt(argv, "hvo:k:m:e:", ["help", "verbose", "operation=", "key=", "mode=","epg_id="])
+		opts, args = getopt.getopt(argv, "hvag:o:k:m:e:", ["help", "verbose", "auto", "gui", "operation=", "key=", "mode=","epg_id="])
 		
 		for flag, value in opts:
 			if flag in ('-v', '--verbose'):
