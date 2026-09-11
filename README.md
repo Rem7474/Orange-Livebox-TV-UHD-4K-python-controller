@@ -1,5 +1,9 @@
 # Orange-Livebox-TV-UHD-4K-python-controller
 
+[![CI](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/actions/workflows/ci.yml/badge.svg)](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller?color=orange)](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases)
+[![Dependabot](https://img.shields.io/badge/dependabot-activé-brightgreen?logo=dependabot)](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/network/updates)
+
 Ce module permet de contrôler le décodeur TV UHD 4K Orange soit via une **interface graphique moderne (GUI)** complète, soit via la **ligne de commande (CLI)**.
 Il nécessite les modules suivants : `requests` (et `tkinter` inclus par défaut avec Python).
 
@@ -135,6 +139,28 @@ Développé et testé sur un système connecté au même réseau local que le d�
 
 * Relacher la touche Volume + de la télécommande :
 `python3 tvOrange.py -o 1 -m 2 -k VOL+`
+
+---
+
+## 🧪 Tests & CI/CD
+
+Le projet intègre une chaîne d'intégration et de déploiement continus (CI/CD) automatisée via GitHub Actions :
+
+* **Exécution des tests unitaires** :
+  ```bash
+  pip install -r requirements-dev.txt
+  pytest -v tests/
+  ```
+* **Surveillance automatique des dépendances (Dependabot)** :
+  Scan hebdomadaire des bibliothèques Python (`requirements.txt`) et des actions GitHub pour appliquer automatiquement les correctifs de sécurité.
+* **Publication automatique des Releases** :
+  La création d'un tag git déclenche la compilation PyInstaller sous Windows et publie automatiquement la nouvelle version avec `LiveboxTVController.exe` et son empreinte SHA-256 :
+  ```bash
+  git tag v1.0.0
+  git push origin v1.0.0
+  ```
+
+---
 
 ## Concernant l'outil
 
