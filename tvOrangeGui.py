@@ -24,12 +24,20 @@ from tkinter import ttk, messagebox
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
-# Dossier du script
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SCRIPT_DIR, "config.json")
-KEYS_FILE = os.path.join(SCRIPT_DIR, "keys.json")
-EPG_IDS_FILE = os.path.join(SCRIPT_DIR, "epg_ids.json")
-RESULT_FILE = os.path.join(SCRIPT_DIR, "result.json")
+# Chemins d'accès (compatibles script Python standard et exécutable PyInstaller --onefile)
+if getattr(sys, 'frozen', False):
+    BUNDLE_DIR = sys._MEIPASS
+    APP_DIR = os.path.dirname(sys.executable)
+else:
+    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
+    APP_DIR = BUNDLE_DIR
+
+CONFIG_FILE = os.path.join(APP_DIR, "config.json")
+RESULT_FILE = os.path.join(APP_DIR, "result.json")
+
+# Les données peuvent être dans le dossier de l'exécutable ou embarquées dans le bundle
+KEYS_FILE = os.path.join(APP_DIR, "keys.json") if os.path.exists(os.path.join(APP_DIR, "keys.json")) else os.path.join(BUNDLE_DIR, "keys.json")
+EPG_IDS_FILE = os.path.join(APP_DIR, "epg_ids.json") if os.path.exists(os.path.join(APP_DIR, "epg_ids.json")) else os.path.join(BUNDLE_DIR, "epg_ids.json")
 
 # Palette graphique moderne (Style Orange & Sombre épuré)
 THEME = {

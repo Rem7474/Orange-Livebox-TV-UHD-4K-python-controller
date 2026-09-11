@@ -15,6 +15,12 @@ ou simplement :
 ```bash
 python tvOrange.py
 ```
+
+### 🚀 Exécutable Windows autonome (.exe)
+Vous pouvez également utiliser l'application sans installer Python :
+* Lancez directement **`dist\LiveboxTVController.exe`** (fichier unique intégrant toutes les dépendances et chaînes).
+* Pour recompiler le `.exe` en 1 clic : double-cliquez sur **`build_exe.bat`**.
+
 <img width="2880" height="1641" alt="image" src="https://github.com/user-attachments/assets/08812778-c3a2-4bde-9946-3f0158a0818b" />
 
 ### Fonctionnalités de l'Interface Graphique :
