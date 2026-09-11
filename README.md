@@ -35,7 +35,8 @@ python tvOrange.py
 * **Configuration Facile & Persistance** :
   * Saisie manuelle ou détection automatique de l'IP/port
   * Sauvegarde automatique dans `config.json` (réutilisé automatiquement par le script CLI)
-  * Bouton "État Décodeur (Op 10)" pour interroger l'état du décodeur
+* **Module d'Exploration & Diagnostic (inspiré d'exploreTvOrange.py)** :
+  * Bouton **"🔬 Exploration"** : ouvre une interface dédiée pour tester à l'aveugle des codes touches inconnus (appui court, long, maintien, scan automatique par plage), tester des modes/opérations brutes et des codes EPG personnalisés avec affichage JSON en direct.
 * **Console de statut & Réactivité** :
   * Exécution asynchrone des requêtes réseau (l'application ne se fige jamais)
   * Journalisation détaillée des commandes envoyées et des retours API

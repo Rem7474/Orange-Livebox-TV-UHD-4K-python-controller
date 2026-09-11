@@ -218,6 +218,20 @@ class OrangeTVClient:
         params = {"operation": "10"}
         return self._send_request(params, timeout)
 
+    def send_raw_operation(self, operation, extra_params=None, timeout=3.0):
+        """Opération générique : teste un mode ou une opération avec paramètres optionnels."""
+        params = {"operation": str(operation)}
+        if extra_params and isinstance(extra_params, dict):
+            params.update(extra_params)
+        return self._send_request(params, timeout)
+
+    def send_key_long_press(self, key_name_or_code, duration=0.2, timeout=3.0):
+        """Simule un appui long : mode 1 (enfoncer), attente, puis mode 2 (relâcher)."""
+        import time
+        self.send_key(key_name_or_code, mode=1, timeout=timeout)
+        time.sleep(duration)
+        return self.send_key(key_name_or_code, mode=2, timeout=timeout)
+
     def _send_request(self, params, timeout):
         url = self.get_url()
         try:
@@ -406,6 +420,12 @@ class OrangeTVApp(tk.Tk):
             bg=THEME["accent"], fg="#ffffff", px=9, py=3
         )
         btn_info.pack(side=tk.LEFT, padx=4)
+
+        btn_explore = self.create_button(
+            cfg_frame, text="🔬 Exploration", command=self.action_open_explore,
+            bg=THEME["btn_bg"], fg="#ce93d8", px=9, py=3, font=("Segoe UI", 9, "bold")
+        )
+        btn_explore.pack(side=tk.LEFT, padx=4)
 
         # Corps principal : 2 colonnes
         main_content = tk.Frame(self, bg=THEME["bg"], padx=14, pady=12)
@@ -999,6 +1019,347 @@ class OrangeTVApp(tk.Tk):
         self.log_text.config(state=tk.NORMAL)
         self.log_text.delete("1.0", tk.END)
         self.log_text.config(state=tk.DISABLED)
+
+    def action_open_explore(self):
+        ExploreDialog(self, self.client)
+
+
+class ExploreDialog(tk.Toplevel):
+    """Fenêtre d'exploration et de diagnostic de l'API Orange Livebox TV (touches, modes, EPG)."""
+
+    def __init__(self, parent, client):
+        super().__init__(parent)
+        self.parent = parent
+        self.client = client
+        self.title("Explorateur d'API - Décodeur Livebox TV")
+        self.geometry("760x650")
+        self.minsize(700, 580)
+        self.configure(bg=THEME["bg"])
+
+        self.scan_thread = None
+        self.stop_scan_flag = False
+
+        self.setup_ui()
+
+    def setup_ui(self):
+        header = tk.Frame(self, bg=THEME["card_bg"], padx=16, pady=12)
+        header.pack(fill=tk.X)
+
+        tk.Label(
+            header, text="🔬 Explorateur d'API Livebox TV",
+            font=("Segoe UI", 12, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+        ).pack(anchor=tk.W)
+
+        tk.Label(
+            header, text="Module d'expérimentation pour tester touches, modes et chaînes EPG à l'aveugle (inspiré de exploreTvOrange.py).",
+            font=("Segoe UI", 9), fg=THEME["text_muted"], bg=THEME["card_bg"]
+        ).pack(anchor=tk.W, pady=(2, 0))
+
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=14, pady=10)
+
+        tab_keys = tk.Frame(notebook, bg=THEME["card_bg"], padx=14, pady=12)
+        notebook.add(tab_keys, text="Touches (Op 1)")
+        self.build_tab_keys(tab_keys)
+
+        tab_ops = tk.Frame(notebook, bg=THEME["card_bg"], padx=14, pady=12)
+        notebook.add(tab_ops, text="Opérations / Modes")
+        self.build_tab_ops(tab_ops)
+
+        tab_epg = tk.Frame(notebook, bg=THEME["card_bg"], padx=14, pady=12)
+        notebook.add(tab_epg, text="Chaînes EPG (Op 9)")
+        self.build_tab_epg(tab_epg)
+
+        # Zone Console / Logs
+        log_frame = tk.Frame(self, bg=THEME["card_bg"], padx=14, pady=8)
+        log_frame.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 10))
+
+        log_header = tk.Frame(log_frame, bg=THEME["card_bg"])
+        log_header.pack(fill=tk.X, pady=(0, 4))
+
+        tk.Label(
+            log_header, text="Résultats & Réponses API JSON :",
+            font=("Segoe UI", 9, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+        ).pack(side=tk.LEFT)
+
+        tk.Button(
+            log_header, text="Effacer", font=("Segoe UI", 8),
+            bg=THEME["btn_bg"], fg=THEME["text_muted"], relief="flat", cursor="hand2",
+            command=self.clear_log
+        ).pack(side=tk.RIGHT)
+
+        self.console = tk.Text(
+            log_frame, height=9, bg=THEME["console_bg"], fg=THEME["console_text"],
+            font=("Consolas", 9), relief="flat", padx=8, pady=6, wrap=tk.WORD
+        )
+        self.console.pack(fill=tk.BOTH, expand=True)
+
+    def build_tab_keys(self, parent):
+        # Section A: Test unitaire
+        sec_unit = tk.LabelFrame(
+            parent, text="Test Unitaire d'une Touche", font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+        )
+        sec_unit.pack(fill=tk.X, pady=(0, 12))
+
+        row1 = tk.Frame(sec_unit, bg=THEME["card_bg"])
+        row1.pack(fill=tk.X)
+
+        tk.Label(row1, text="Code Touche :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT, padx=(0, 6))
+
+        self.key_entry = tk.Entry(
+            row1, font=("Consolas", 10), width=8,
+            bg=THEME["entry_bg"], fg=THEME["text"], insertbackground=THEME["text"],
+            relief="flat", highlightthickness=1, highlightbackground=THEME["card_border"]
+        )
+        self.key_entry.insert(0, "116")
+        self.key_entry.pack(side=tk.LEFT, padx=(0, 12), ipady=2)
+
+        self.key_mode_var = tk.StringVar(value="0")
+        tk.Label(row1, text="Mode :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT, padx=(0, 4))
+
+        modes = [("Court (0)", "0"), ("Enfoncer (1)", "1"), ("Relâcher (2)", "2"), ("Long (200ms)", "long")]
+        for lbl, val in modes:
+            tk.Radiobutton(
+                row1, text=lbl, variable=self.key_mode_var, value=val,
+                bg=THEME["card_bg"], fg=THEME["text"], selectcolor=THEME["card_bg"],
+                activebackground=THEME["card_bg"], activeforeground=THEME["accent"],
+                font=("Segoe UI", 8)
+            ).pack(side=tk.LEFT, padx=3)
+
+        btn_send = tk.Button(
+            row1, text="Envoyer", font=("Segoe UI", 9, "bold"),
+            bg=THEME["accent"], fg="#ffffff", activebackground=THEME["accent_hover"],
+            relief="flat", cursor="hand2", padx=10, pady=2,
+            command=self.action_send_single_key
+        )
+        btn_send.pack(side=tk.RIGHT)
+
+        # Section B: Balayeur / Scanner de Touches
+        sec_scan = tk.LabelFrame(
+            parent, text="Scanner de Touches (fast_explore)", font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+        )
+        sec_scan.pack(fill=tk.X)
+
+        r_range = tk.Frame(sec_scan, bg=THEME["card_bg"])
+        r_range.pack(fill=tk.X, pady=(0, 6))
+
+        tk.Label(r_range, text="Plage : de", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
+        self.scan_start_entry = tk.Entry(r_range, width=6, font=("Consolas", 9), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        self.scan_start_entry.insert(0, "1")
+        self.scan_start_entry.pack(side=tk.LEFT, padx=4)
+
+        tk.Label(r_range, text="à :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
+        self.scan_end_entry = tk.Entry(r_range, width=6, font=("Consolas", 9), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        self.scan_end_entry.insert(0, "100")
+        self.scan_end_entry.pack(side=tk.LEFT, padx=4)
+
+        tk.Label(r_range, text="Délai (s) :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT, padx=(10, 4))
+        self.scan_delay_entry = tk.Entry(r_range, width=5, font=("Consolas", 9), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        self.scan_delay_entry.insert(0, "0.3")
+        self.scan_delay_entry.pack(side=tk.LEFT, padx=4)
+
+        self.exclude_known_var = tk.BooleanVar(value=True)
+        cb = tk.Checkbutton(
+            sec_scan, text="Ignorer les touches déjà répertoriées (keys.json)",
+            variable=self.exclude_known_var, bg=THEME["card_bg"], fg=THEME["text"],
+            selectcolor=THEME["card_bg"], activebackground=THEME["card_bg"],
+            font=("Segoe UI", 8)
+        )
+        cb.pack(anchor=tk.W, pady=(0, 8))
+
+        r_btns = tk.Frame(sec_scan, bg=THEME["card_bg"])
+        r_btns.pack(fill=tk.X)
+
+        self.btn_start_scan = tk.Button(
+            r_btns, text="▶ Démarrer le Scan", font=("Segoe UI", 9, "bold"),
+            bg="#2e7d32", fg="#ffffff", activebackground="#388e3c",
+            relief="flat", cursor="hand2", padx=10, pady=3,
+            command=self.action_start_key_scan
+        )
+        self.btn_start_scan.pack(side=tk.LEFT, padx=(0, 6))
+
+        self.btn_stop_scan = tk.Button(
+            r_btns, text="⏹ Arrêter", font=("Segoe UI", 9, "bold"),
+            bg="#c62828", fg="#ffffff", activebackground="#d32f2f",
+            relief="flat", cursor="hand2", padx=10, pady=3, state=tk.DISABLED,
+            command=self.action_stop_key_scan
+        )
+        self.btn_stop_scan.pack(side=tk.LEFT)
+
+        self.scan_status_lbl = tk.Label(
+            r_btns, text="Prêt", font=("Segoe UI", 9), fg=THEME["text_muted"], bg=THEME["card_bg"]
+        )
+        self.scan_status_lbl.pack(side=tk.RIGHT, padx=6)
+
+    def build_tab_ops(self, parent):
+        sec = tk.LabelFrame(
+            parent, text="Tester une Opération (explore_modes)", font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+        )
+        sec.pack(fill=tk.X, pady=(0, 10))
+
+        r1 = tk.Frame(sec, bg=THEME["card_bg"])
+        r1.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(r1, text="Code Opération (-o) :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
+        self.op_entry = tk.Entry(r1, width=8, font=("Consolas", 10), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        self.op_entry.insert(0, "10")
+        self.op_entry.pack(side=tk.LEFT, padx=8)
+
+        tk.Button(
+            r1, text="Tester Opération", font=("Segoe UI", 9, "bold"),
+            bg=THEME["accent"], fg="#ffffff", activebackground=THEME["accent_hover"],
+            relief="flat", cursor="hand2", padx=10, pady=2,
+            command=self.action_test_op
+        ).pack(side=tk.LEFT, padx=10)
+
+        tk.Label(
+            sec, text="💡 Opérations connues : 1 = Touche télécommande, 9 = Zapping EPG, 10 = Infos décodeur.\nTestez d'autres entiers (ex: 2, 3, 4, 11...) pour sonder les réponses du décodeur.",
+            font=("Segoe UI", 8, "italic"), fg=THEME["text_muted"], bg=THEME["card_bg"], justify=tk.LEFT
+        ).pack(anchor=tk.W)
+
+    def build_tab_epg(self, parent):
+        sec = tk.LabelFrame(
+            parent, text="Tester un Code EPG (explore_epg_ids)", font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+        )
+        sec.pack(fill=tk.X, pady=(0, 10))
+
+        r1 = tk.Frame(sec, bg=THEME["card_bg"])
+        r1.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(r1, text="Code EPG ID (-e) :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
+        self.epg_entry = tk.Entry(r1, width=12, font=("Consolas", 10), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        self.epg_entry.insert(0, "192")
+        self.epg_entry.pack(side=tk.LEFT, padx=8)
+
+        tk.Button(
+            r1, text="Tester Zapping EPG", font=("Segoe UI", 9, "bold"),
+            bg=THEME["accent"], fg="#ffffff", activebackground=THEME["accent_hover"],
+            relief="flat", cursor="hand2", padx=10, pady=2,
+            command=self.action_test_epg
+        ).pack(side=tk.LEFT, padx=10)
+
+    # Actions de test
+    def action_send_single_key(self):
+        k = self.key_entry.get().strip()
+        m = self.key_mode_var.get()
+        if not k:
+            return
+
+        self.log(f"Envoi touche '{k}' (mode {m})...")
+
+        def task():
+            if m == "long":
+                success, data, err = self.client.send_key_long_press(k, duration=0.2)
+            else:
+                success, data, err = self.client.send_key(k, mode=int(m))
+            self.after(0, lambda: self._show_result(f"Touche {k} (mode {m})", success, data, err))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def action_test_op(self):
+        op = self.op_entry.get().strip()
+        if not op:
+            return
+
+        self.log(f"Test opération '{op}'...")
+
+        def task():
+            success, data, err = self.client.send_raw_operation(op)
+            self.after(0, lambda: self._show_result(f"Opération {op}", success, data, err))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def action_test_epg(self):
+        epg = self.epg_entry.get().strip()
+        if not epg:
+            return
+
+        self.log(f"Test chaîne EPG '{epg}'...")
+
+        def task():
+            success, data, err = self.client.change_channel(epg)
+            self.after(0, lambda: self._show_result(f"Chaîne EPG {epg}", success, data, err))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def action_start_key_scan(self):
+        try:
+            start_k = int(self.scan_start_entry.get().strip())
+            end_k = int(self.scan_end_entry.get().strip())
+            delay = float(self.scan_delay_entry.get().strip())
+        except ValueError:
+            messagebox.showerror("Erreur", "Veuillez renseigner des entiers valides pour la plage et le délai.")
+            return
+
+        self.stop_scan_flag = False
+        self.btn_start_scan.config(state=tk.DISABLED)
+        self.btn_stop_scan.config(state=tk.NORMAL)
+        self.scan_status_lbl.config(text=f"Scan en cours ({start_k} à {end_k})...", fg=THEME["warning"])
+        self.log(f"--- Démarrage du scan des touches de {start_k} à {end_k} (intervalle {delay}s) ---")
+
+        known_codes = set()
+        if self.exclude_known_var.get() and self.client.keys:
+            for v in self.client.keys.values():
+                if str(v).isdigit():
+                    known_codes.add(int(v))
+
+        def worker():
+            import time
+            tested_count = 0
+            for key_num in range(start_k, end_k + 1):
+                if self.stop_scan_flag:
+                    break
+                if key_num in known_codes:
+                    continue
+
+                self.after(0, lambda k=key_num: self.scan_status_lbl.config(text=f"Test touche {k}..."))
+                success, data, err = self.client.send_key(key_num, mode=0, timeout=1.5)
+                self.after(0, lambda k=key_num, s=success, d=data, e=err: self._log_scan_result(k, s, d, e))
+                tested_count += 1
+                time.sleep(delay)
+
+            self.after(0, lambda: self._on_scan_finished(tested_count))
+
+        self.scan_thread = threading.Thread(target=worker, daemon=True)
+        self.scan_thread.start()
+
+    def action_stop_key_scan(self):
+        self.stop_scan_flag = True
+        self.scan_status_lbl.config(text="Arrêt en cours...", fg=THEME["warning"])
+
+    def _log_scan_result(self, key_num, success, data, err):
+        if success:
+            msg = data.get("result", {}).get("message", "ok")
+            code = data.get("result", {}).get("responseCode", "?")
+            self.log(f"[Touche {key_num}] -> Code: {code}, Msg: '{msg}'")
+        else:
+            self.log(f"[Touche {key_num}] -> Échec ({err})")
+
+    def _on_scan_finished(self, count):
+        self.btn_start_scan.config(state=tk.NORMAL)
+        self.btn_stop_scan.config(state=tk.DISABLED)
+        status_txt = "Scan terminé" if not self.stop_scan_flag else "Scan interrompu"
+        self.scan_status_lbl.config(text=f"{status_txt} ({count} testées)", fg=THEME["success"])
+        self.log(f"--- {status_txt} ({count} touches testées) ---")
+
+    def _show_result(self, title, success, data, err):
+        if success:
+            self.log(f"[{title}] SUCCÈS :")
+            self.log(json.dumps(data, indent=2, ensure_ascii=False))
+        else:
+            self.log(f"[{title}] ERREUR : {err}")
+
+    def log(self, text):
+        now = datetime.now().strftime("%H:%M:%S")
+        self.console.insert(tk.END, f"[{now}] {text}\n")
+        self.console.see(tk.END)
+
+    def clear_log(self):
+        self.console.delete("1.0", tk.END)
 
 
 def main():
