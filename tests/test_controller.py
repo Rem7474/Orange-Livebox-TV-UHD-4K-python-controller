@@ -145,10 +145,13 @@ def test_gui_app_initialization():
         pytest.skip("Environnement d'affichage graphique non disponible (Linux headless sans DISPLAY)")
 
     import tvOrangeGui
+    channel_count = 0
     try:
         app = tvOrangeGui.OrangeTVApp()
-        assert len(app.all_channels) > 300, "L'application doit avoir chargé plus de 300 chaînes"
+        channel_count = len(app.all_channels)
         app.update()
         app.destroy()
     except Exception as e:
         pytest.fail(f"Échec de l'initialisation de l'application graphique : {e}")
+
+    assert channel_count > 300, "L'application doit avoir chargé plus de 300 chaînes"

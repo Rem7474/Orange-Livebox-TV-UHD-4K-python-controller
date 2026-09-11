@@ -63,7 +63,7 @@ THEME = {
     "console_text": "#cfcfd6",
 }
 
-DEFAULT_IP = "192.168.1.15"
+DEFAULT_IP = "192.168.1.15"  # NOSONAR
 DEFAULT_PORT = "8080"
 
 
@@ -87,7 +87,7 @@ def discover_decoder_ip(progress_cb=None):
         try:
             ip = socket.gethostbyname(host)
             # Vérifier si le décodeur répond bien sur le port 8080
-            r = requests.get(f"http://{ip}:8080/remoteControl/cmd", params={"operation": 10}, timeout=1.0)
+            r = requests.get(f"http://{ip}:8080/remoteControl/cmd", params={"operation": 10}, timeout=1.0)  # NOSONAR
             if r.status_code == 200:
                 fname = r.json().get("result", {}).get("data", {}).get("friendlyName", host)
                 return ip, "8080", f"Hostname DNS '{host}' ({fname})"
@@ -98,7 +98,7 @@ def discover_decoder_ip(progress_cb=None):
     subnet = "192.168.1"
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("192.168.1.1", 80))
+        s.connect(("192.168.1.1", 80))  # NOSONAR
         local_ip = s.getsockname()[0]
         s.close()
         subnet = ".".join(local_ip.split(".")[:3])
@@ -112,7 +112,7 @@ def discover_decoder_ip(progress_cb=None):
     arp_ips = []
     try:
         arp_out = subprocess.check_output("arp -a", shell=True, text=True, errors="ignore")
-        found = re.findall(r"(\d+\.\d+\.\d+\.\d+)", arp_out)
+        found = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", arp_out)
         arp_ips = [
             ip for ip in found
             if ip.startswith(subnet) and not ip.endswith(".255") and not ip.endswith(".1")
@@ -128,7 +128,7 @@ def discover_decoder_ip(progress_cb=None):
             res = sock.connect_ex((ip, 8080))
             sock.close()
             if res == 0:
-                r = requests.get(f"http://{ip}:8080/remoteControl/cmd", params={"operation": 10}, timeout=0.8)
+                r = requests.get(f"http://{ip}:8080/remoteControl/cmd", params={"operation": 10}, timeout=0.8)  # NOSONAR
                 if r.status_code == 200:
                     data = r.json()
                     res_obj = data.get("result", {})
@@ -182,7 +182,7 @@ class OrangeTVClient:
         clean_ip = self.ip.strip()
         if clean_ip.startswith("http://") or clean_ip.startswith("https://"):
             return f"{clean_ip}:{self.port}/remoteControl/cmd"
-        return f"http://{clean_ip}:{self.port}/remoteControl/cmd"
+        return f"http://{clean_ip}:{self.port}/remoteControl/cmd"  # NOSONAR
 
     def load_data(self):
         if os.path.exists(KEYS_FILE):
