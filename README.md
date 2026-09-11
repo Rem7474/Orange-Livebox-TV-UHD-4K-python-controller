@@ -15,6 +15,7 @@ ou simplement :
 ```bash
 python tvOrange.py
 ```
+<img width="2880" height="1641" alt="image" src="https://github.com/user-attachments/assets/08812778-c3a2-4bde-9946-3f0158a0818b" />
 
 ### Fonctionnalités de l'Interface Graphique :
 * **Télécommande virtuelle complète** :
