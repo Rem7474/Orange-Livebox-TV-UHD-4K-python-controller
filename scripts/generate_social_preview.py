@@ -26,6 +26,7 @@ def generate_html(logo_b64):
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<title>Orange Livebox TV Controller - Social Preview</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
