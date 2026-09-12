@@ -12,7 +12,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Creation de l'executable autonome...
-pyinstaller --noconsole --onefile --name "LiveboxTVController" --add-data "keys.json;." --add-data "epg_ids.json;." tvOrangeGui.py
+pyinstaller --noconsole --onefile --name "LiveboxTVController" --icon "app_icon.ico" --add-data "keys.json;." --add-data "epg_ids.json;." tvOrangeGui.py
 
 echo.
 if exist "dist\LiveboxTVController.exe" (

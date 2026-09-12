@@ -39,7 +39,7 @@ jobs:
 
       - name: Compilation de l'exécutable autonome (.exe)
         run: |
-          pyinstaller --noconsole --onefile --name "LiveboxTVController" --add-data "keys.json;." --add-data "epg_ids.json;." tvOrangeGui.py
+          pyinstaller --noconsole --onefile --name "LiveboxTVController" --icon "app_icon.ico" --add-data "keys.json;." --add-data "epg_ids.json;." tvOrangeGui.py
 
       - name: Génération de l'empreinte SHA-256
         run: |

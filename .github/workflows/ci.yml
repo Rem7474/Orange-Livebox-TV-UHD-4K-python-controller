@@ -56,7 +56,7 @@ jobs:
 
       - name: Compilation de l'exécutable PyInstaller
         run: |
-          pyinstaller --noconsole --onefile --name "LiveboxTVController" --add-data "keys.json;." --add-data "epg_ids.json;." tvOrangeGui.py
+          pyinstaller --noconsole --onefile --name "LiveboxTVController" --icon "app_icon.ico" --add-data "keys.json;." --add-data "epg_ids.json;." tvOrangeGui.py
 
       - name: Vérification de la présence du binaire
         run: |
