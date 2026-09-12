@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/decoder_status.dart';
 import '../services/discovery_service.dart';
 import '../services/livebox_service.dart';
+import '../services/network_permission_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final LiveboxService service;
@@ -23,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _scanStatusMessage = '';
   double _scanProgress = 0.0;
   DiscoveredDevice? _foundDevice;
+  bool _scanPermissionDenied = false;
 
   bool _isTesting = false;
   DecoderStatus? _testResult;
@@ -78,6 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _scanProgress = 0.0;
       _scanStatusMessage = 'Démarrage du scan...';
       _foundDevice = null;
+      _scanPermissionDenied = false;
     });
 
     final device = await _discoveryService.discover(
@@ -91,10 +95,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       },
     );
 
+    final permissionDenied =
+        device == null && !await NetworkPermissionService.isGranted();
+
     if (mounted) {
       setState(() {
         _isScanning = false;
         _foundDevice = device;
+        _scanPermissionDenied = permissionDenied;
       });
 
       if (device != null) {
@@ -198,10 +206,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         color: const Color(0xFFFF6600),
                       ),
                       const SizedBox(height: 8),
+                    ],
+                    if (_scanStatusMessage.isNotEmpty &&
+                        (_isScanning || _foundDevice == null)) ...[
                       Text(
                         _scanStatusMessage,
                         style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
+                      if (_scanPermissionDenied) ...[
+                        const SizedBox(height: 4),
+                        TextButton.icon(
+                          onPressed: openAppSettings,
+                          icon: const Icon(Icons.settings_rounded, size: 16),
+                          label: const Text('Ouvrir les paramètres de l\'application'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFFFF6600),
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                     ],
                     if (_foundDevice != null) ...[
@@ -431,6 +456,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _testResult!.errorMessage ?? 'Délai d\'attente dépassé.',
                                 style: const TextStyle(color: Colors.white54, fontSize: 12),
                               ),
+                              if (_testResult!.permissionDenied) ...[
+                                const SizedBox(height: 8),
+                                TextButton.icon(
+                                  onPressed: openAppSettings,
+                                  icon: const Icon(Icons.settings_rounded, size: 16),
+                                  label: const Text('Ouvrir les paramètres de l\'application'),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: const Color(0xFFFF6600),
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: const Size(0, 0),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                ),
+                              ],
                             ],
                           ],
                         ),

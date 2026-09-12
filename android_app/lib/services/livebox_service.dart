@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import '../models/channel.dart';
 import '../models/decoder_status.dart';
 import '../models/remote_key.dart';
+import 'network_permission_service.dart';
 import 'storage_service.dart';
 
 class LiveboxService {
@@ -20,8 +23,24 @@ class LiveboxService {
       : storage = storage ?? StorageService(),
         _client = client ?? http.Client();
 
+  String? _lastError;
+
   List<Channel> get allChannels => _allChannels;
   bool get isDataLoaded => _isDataLoaded;
+  String? get lastError => _lastError;
+
+  String _describeError(Object error) {
+    if (error is TimeoutException) {
+      return 'Délai d\'attente dépassé : le décodeur ne répond pas.';
+    }
+    if (error is SocketException) {
+      return 'Connexion impossible : ${error.message}';
+    }
+    if (error is FormatException) {
+      return 'Réponse invalide reçue du décodeur.';
+    }
+    return error.toString();
+  }
 
   Future<void> init() async {
     if (_isDataLoaded) return;
@@ -29,7 +48,9 @@ class LiveboxService {
       final keysStr = await rootBundle.loadString('assets/keys.json');
       final keysMap = jsonDecode(keysStr) as Map<String, dynamic>;
       _keys = keysMap.map((k, v) => MapEntry(k, v.toString()));
-    } catch (_) {}
+    } catch (e) {
+      developer.log('Échec du chargement de assets/keys.json', name: 'LiveboxService', error: e);
+    }
 
     try {
       final epgStr = await rootBundle.loadString('assets/epg_ids.json');
@@ -86,7 +107,9 @@ class LiveboxService {
 
       _allChannels = list;
       _isDataLoaded = true;
-    } catch (_) {}
+    } catch (e) {
+      developer.log('Échec du chargement de assets/epg_ids.json', name: 'LiveboxService', error: e);
+    }
   }
 
   Future<String> _getBaseUrl() async {
@@ -101,6 +124,10 @@ class LiveboxService {
   }
 
   Future<bool> sendKeyRaw(String keyNameOrCode, {int mode = 0}) async {
+    if (!await NetworkPermissionService.request()) {
+      _lastError = "Autorisation d'accès au réseau local refusée.";
+      return false;
+    }
     try {
       final baseUrl = await _getBaseUrl();
       final keyCode = _keys[keyNameOrCode] ?? keyNameOrCode;
@@ -114,15 +141,23 @@ class LiveboxService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final res = data['result'];
-        return res != null && (res['responseCode'] == '0' || res['message'] == 'ok');
+        final ok = res != null && (res['responseCode'] == '0' || res['message'] == 'ok');
+        if (!ok) _lastError = 'Le décodeur a refusé la commande.';
+        return ok;
       }
+      _lastError = 'Code HTTP ${response.statusCode}';
       return false;
-    } catch (_) {
+    } catch (e) {
+      _lastError = _describeError(e);
       return false;
     }
   }
 
   Future<bool> changeChannel(String epgId) async {
+    if (!await NetworkPermissionService.request()) {
+      _lastError = "Autorisation d'accès au réseau local refusée.";
+      return false;
+    }
     try {
       final baseUrl = await _getBaseUrl();
       final targetEpg = _epgIds[epgId] ?? epgId;
@@ -136,15 +171,22 @@ class LiveboxService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final res = data['result'];
-        return res != null && (res['responseCode'] == '0' || res['message'] == 'ok');
+        final ok = res != null && (res['responseCode'] == '0' || res['message'] == 'ok');
+        if (!ok) _lastError = 'Le décodeur a refusé le changement de chaîne.';
+        return ok;
       }
+      _lastError = 'Code HTTP ${response.statusCode}';
       return false;
-    } catch (_) {
+    } catch (e) {
+      _lastError = _describeError(e);
       return false;
     }
   }
 
   Future<DecoderStatus> getStatus() async {
+    if (!await NetworkPermissionService.request()) {
+      return DecoderStatus.permissionDenied();
+    }
     try {
       final baseUrl = await _getBaseUrl();
       final uri = Uri.parse(baseUrl).replace(queryParameters: {
@@ -159,7 +201,7 @@ class LiveboxService {
         return DecoderStatus.offline('Code HTTP ${response.statusCode}');
       }
     } catch (e) {
-      return DecoderStatus.offline(e.toString());
+      return DecoderStatus.offline(_describeError(e));
     }
   }
 }

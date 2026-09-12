@@ -1,7 +1,9 @@
 ﻿import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'network_permission_service.dart';
 
 class DiscoveredDevice {
   final String ip;
@@ -37,6 +39,14 @@ class DiscoveryService {
   Future<DiscoveredDevice?> discover({
     void Function(String message, double progress)? onProgress,
   }) async {
+    if (!await NetworkPermissionService.request()) {
+      onProgress?.call(
+        "Autorisation d'accès au réseau local refusée. Activez-la dans les paramètres de l'application.",
+        1.0,
+      );
+      return null;
+    }
+
     // 1. Recherche par noms d'hôtes DNS
     onProgress?.call("Recherche par noms d'hôtes DNS...", 0.1);
     for (var i = 0; i < dnsCandidates.length; i++) {
@@ -75,7 +85,13 @@ class DiscoveryService {
         }
         if (localSubnet != null) break;
       }
-    } catch (_) {}
+    } catch (e) {
+      developer.log(
+        'Échec de la détection des interfaces réseau, repli sur 192.168.1.x',
+        name: 'DiscoveryService',
+        error: e,
+      );
+    }
 
     localSubnet ??= '192.168.1';
 

@@ -41,12 +41,17 @@ class _RemoteScreenState extends State<RemoteScreen> {
     HapticFeedback.lightImpact();
     final ok = await widget.service.sendKey(key);
     if (!ok && mounted) {
+      final reason = widget.service.lastError;
       ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Échec de la commande ${key.label}'),
+          content: Text(
+            reason != null
+                ? 'Échec de la commande ${key.label} : $reason'
+                : 'Échec de la commande ${key.label}',
+          ),
           backgroundColor: Colors.redAccent,
-          duration: const Duration(milliseconds: 1200),
+          duration: const Duration(milliseconds: 1800),
           behavior: SnackBarBehavior.floating,
         ),
       );

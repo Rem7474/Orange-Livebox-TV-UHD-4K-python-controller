@@ -8,6 +8,7 @@
   final String timeShiftingState;
   final String macAddress;
   final String? errorMessage;
+  final bool permissionDenied;
   final DateTime lastUpdated;
 
   DecoderStatus({
@@ -20,6 +21,7 @@
     required this.timeShiftingState,
     required this.macAddress,
     this.errorMessage,
+    this.permissionDenied = false,
     required this.lastUpdated,
   });
 
@@ -54,6 +56,22 @@
       timeShiftingState: '0',
       macAddress: '',
       errorMessage: message ?? 'Impossible de joindre le décodeur',
+      lastUpdated: DateTime.now(),
+    );
+  }
+
+  factory DecoderStatus.permissionDenied() {
+    return DecoderStatus(
+      isOnline: false,
+      isOn: false,
+      friendlyName: 'Décodeur déconnecté',
+      osdContext: 'INCONNU',
+      playedMediaId: '',
+      playedMediaType: '',
+      timeShiftingState: '0',
+      macAddress: '',
+      errorMessage: "Autorisation d'accès au réseau local refusée.",
+      permissionDenied: true,
       lastUpdated: DateTime.now(),
     );
   }

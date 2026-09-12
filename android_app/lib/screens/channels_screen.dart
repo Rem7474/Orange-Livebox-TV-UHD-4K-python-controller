@@ -57,16 +57,19 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
 
     if (mounted) {
       setState(() => _zappingChannelName = null);
+      final reason = widget.service.lastError;
       ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             ok
                 ? 'Zappé sur ${channel.displayName}'
-                : 'Échec du zapping vers ${channel.displayName}',
+                : (reason != null
+                    ? 'Échec du zapping vers ${channel.displayName} : $reason'
+                    : 'Échec du zapping vers ${channel.displayName}'),
           ),
           backgroundColor: ok ? const Color(0xFFFF6600) : Colors.redAccent,
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: ok ? 2 : 3),
           behavior: SnackBarBehavior.floating,
         ),
       );
