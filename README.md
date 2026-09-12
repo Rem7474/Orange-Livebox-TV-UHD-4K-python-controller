@@ -1,11 +1,17 @@
 # Orange-Livebox-TV-UHD-4K-python-controller
 
 [![CI](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/actions/workflows/ci.yml/badge.svg)](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=Rem7474_Orange-Livebox-TV-UHD-4K-python-controller&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Rem7474_Orange-Livebox-TV-UHD-4K-python-controller)
 [![Release](https://img.shields.io/github/v/release/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller?color=orange)](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases)
 [![Dependabot](https://img.shields.io/badge/dependabot-activé-brightgreen?logo=dependabot)](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/network/updates)
 
-Ce module permet de contrôler le décodeur TV UHD 4K Orange soit via une **interface graphique moderne (GUI)** complète, soit via la **ligne de commande (CLI)**.
-Il nécessite les modules suivants : `requests` (et `tkinter` inclus par défaut avec Python).
+Suite complète pour piloter et automatiser votre décodeur **Orange Livebox TV UHD 4K** sur votre réseau local. Ce projet propose désormais **3 solutions complémentaires** adaptées à tous vos usages :
+
+| Solution | Plateforme | Technologie | Description |
+|---|---|---|---|
+| 🖥️ **Desktop GUI** | Windows, Linux, macOS | Python / Tkinter | Interface graphique avec télécommande virtuelle, zapping TNT & module d'exploration |
+| 📱 **Mobile App** | Android (Smartphones & Tablettes) | Flutter (Dart) | Application mobile tactile fluide (D-Pad, volume/chaînes, guide 300+ chaînes, scan Wi-Fi) |
+| ⌨️ **CLI Script** | Tous OS | Python standard | Outil en ligne de commande idéal pour scripts d'automatisation, raccourcis et cron |
 
 ---
 
@@ -57,16 +63,38 @@ Vous pouvez également utiliser l'application sans installer Python :
 ## 📱 Application Mobile Android
 
 Une application mobile Android moderne, fluide et autonome est disponible dans le dossier [`android_app/`](android_app/) :
-* **Télécommande tactile complète** : Marche/Arrêt, Pavé directionnel (D-Pad), Volume/Chaînes en commande basculante, Touches système et multimédia, pavé numérique escamotable et retour haptique.
-* **Guide TV & Zapping instantané** : Moteur de recherche parmi les plus de 300 chaînes Orange TV et système de mise en favoris en 1 clic.
-* **Scan réseau Wi-Fi automatique** : Détection sans configuration manuelle de l'adresse IP de votre décodeur TV sur le réseau local.
-* **Téléchargement direct de l'APK** : Disponible dans les [Releases GitHub](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases) (`LiveboxTVController.apk`).
 
-Pour compiler l'APK vous-même :
+### ✨ Fonctionnalités Mobile :
+* **Télécommande tactile intégrale** :
+  * Marche / Veille avec voyant d'état interactif en temps réel (Vert = allumé, Rouge/Orange = veille ou hors-ligne).
+  * Disque directionnel ergonomique (D-Pad : Haut, Bas, Gauche, Droite, OK).
+  * Double commande basculante pour le volume (`VOL+`, `VOL-`, `MUTE`) et les chaînes (`CH+`, `CH-`).
+  * Touches d'accès direct : Retour, Menu / Accueil, Guide TV, VOD, Enregistrement (`REC`).
+  * Commandes multimédia : Lecture / Pause, Avance rapide, Retour rapide, Direct.
+  * Clavier numérique escamotable (0 à 9) déployable en 1 tap.
+  * **Retour haptique physique** : vibration subtile à chaque appui de touche.
+* **Guide des Chaînes & Zapping instantané** :
+  * Intégration de plus de 300 chaînes Orange TV avec numérotation officielle.
+  * Recherche en temps réel par nom (ex: *TF1, Canal+, Arte*) ou par numéro de chaîne.
+  * Mise en favoris (★) d'un clic pour épingler vos chaînes préférées en haut de la liste.
+* **Détection Wi-Fi automatique** :
+  * Détection en 1 clic de l'adresse IP de votre décodeur sans configuration manuelle (résolution DNS `livebox-tv.home` et scan de sous-réseau `192.168.1.x:8080`).
+  * Affichage en direct du statut : nom du décodeur, contexte d'affichage (`LIVE`, `HOMEPAGE`), état d'alimentation.
+
+### 📥 Comment installer l'application sur votre smartphone Android :
+1. Rendez-vous sur la page des [Releases GitHub](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases).
+2. Téléchargez le fichier **`LiveboxTVController.apk`**.
+3. Sur votre téléphone, ouvrez le fichier téléchargé et autorisez l'installation depuis cette source si demandé.
+4. Assurez-vous d'être connecté au même réseau Wi-Fi que votre décodeur Livebox TV : l'application détectera automatiquement votre décodeur !
+
+### 🛠️ Compilation locale de l'APK :
 ```bash
 cd android_app
+flutter pub get
+flutter test
 flutter build apk --release
 ```
+Le fichier généré sera disponible dans `android_app/build/app/outputs/flutter-apk/app-release.apk`.
 
 ---
 
@@ -160,20 +188,32 @@ Développé et testé sur un système connecté au même réseau local que le d�
 
 ## 🧪 Tests & CI/CD
 
-Le projet intègre une chaîne d'intégration et de déploiement continus (CI/CD) automatisée via GitHub Actions :
+Le projet intègre une chaîne d'intégration et de déploiement continus (CI/CD) complète et automatisée via GitHub Actions :
 
-* **Exécution des tests unitaires** :
+* **Tests unitaires Python (Matrix Linux & Windows, Python 3.10 à 3.13)** :
   ```bash
   pip install -r requirements-dev.txt
   pytest -v tests/
   ```
+* **Tests unitaires & Analyse mobile Flutter** :
+  ```bash
+  cd android_app
+  flutter analyze
+  flutter test
+  ```
+* **Qualité de code SonarCloud** :
+  Analyse statique automatique validant la sécurité et la fiabilité du code (Quality Gate actif).
 * **Surveillance automatique des dépendances (Dependabot)** :
   Scan hebdomadaire des bibliothèques Python (`requirements.txt`) et des actions GitHub pour appliquer automatiquement les correctifs de sécurité.
 * **Publication automatique des Releases** :
-  La création d'un tag git déclenche la compilation PyInstaller sous Windows et publie automatiquement la nouvelle version avec `LiveboxTVController.exe` et son empreinte SHA-256 :
+  La création d'un tag git (ex: `v1.1.0`) déclenche automatiquement :
+  - La compilation sous Windows de l'exécutable autonome `LiveboxTVController.exe`.
+  - La compilation sous Ubuntu de l'application Android `LiveboxTVController.apk`.
+  - La génération des empreintes d'intégrité SHA-256 pour chaque fichier.
+  - La publication directe sur la page des Releases GitHub.
   ```bash
-  git tag v1.0.0
-  git push origin v1.0.0
+  git tag v1.1.0
+  git push origin v1.1.0
   ```
 
 ---
