@@ -67,6 +67,8 @@ jobs:
     name: Build & Release Android APK
     needs: release
     runs-on: ubuntu-latest
+    env:
+      HAS_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' }}
     steps:
       - name: Checkout du code
         uses: actions/checkout@v4
@@ -84,13 +86,13 @@ jobs:
           cache: true
 
       - name: Décodage du keystore de signature Release
-        if: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' }}
+        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         run: |
           echo "${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/livebox-release.jks"
 
       - name: Compilation de l'APK Android Release
         env:
-          ANDROID_RELEASE_KEYSTORE_PATH: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' && format('{0}/livebox-release.jks', runner.temp) || '' }}
+          ANDROID_RELEASE_KEYSTORE_PATH: ${{ env.HAS_RELEASE_KEYSTORE == 'true' && format('{0}/livebox-release.jks', runner.temp) || '' }}
           ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_RELEASE_KEY_ALIAS: ${{ vars.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
