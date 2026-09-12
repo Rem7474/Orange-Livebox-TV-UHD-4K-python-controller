@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.orange.livebox.android_app"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android requires compileSdk >= 37 (Local Network Protections API).
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -25,11 +26,29 @@ android {
         versionName = flutter.versionName
     }
 
+    val releaseKeystorePath = System.getenv("ANDROID_RELEASE_KEYSTORE_PATH")
+    val hasReleaseKeystore = !releaseKeystorePath.isNullOrEmpty()
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseKeystore) {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword = System.getenv("ANDROID_RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Utilise le vrai keystore de release quand il est fourni (CI), sinon retombe sur
+            // la clé de debug pour que `flutter run --release` fonctionne en local.
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
