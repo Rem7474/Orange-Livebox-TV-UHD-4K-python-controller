@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/channel.dart';
 import '../services/livebox_service.dart';
@@ -54,6 +55,9 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     setState(() => _zappingChannelName = channel.name);
 
     final ok = await widget.service.changeChannel(channel.epgId);
+    if (ok) {
+      unawaited(widget.service.getStatus());
+    }
 
     if (mounted) {
       setState(() => _zappingChannelName = null);

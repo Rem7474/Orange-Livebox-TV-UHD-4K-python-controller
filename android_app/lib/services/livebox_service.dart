@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 import '../models/channel.dart';
@@ -10,7 +11,7 @@ import '../models/remote_key.dart';
 import 'network_permission_service.dart';
 import 'storage_service.dart';
 
-class LiveboxService {
+class LiveboxService extends ChangeNotifier {
   final StorageService storage;
   final http.Client _client;
 
@@ -24,10 +25,13 @@ class LiveboxService {
         _client = client ?? http.Client();
 
   String? _lastError;
+  DecoderStatus? _lastStatus;
 
   List<Channel> get allChannels => _allChannels;
   bool get isDataLoaded => _isDataLoaded;
   String? get lastError => _lastError;
+  // Dernier statut connu du décodeur, partagé entre tous les écrans qui appellent getStatus().
+  DecoderStatus? get lastStatus => _lastStatus;
 
   String _describeError(Object error) {
     if (error is TimeoutException) {
@@ -184,6 +188,13 @@ class LiveboxService {
   }
 
   Future<DecoderStatus> getStatus() async {
+    final status = await _fetchStatus();
+    _lastStatus = status;
+    notifyListeners();
+    return status;
+  }
+
+  Future<DecoderStatus> _fetchStatus() async {
     if (!await NetworkPermissionService.request()) {
       return DecoderStatus.permissionDenied();
     }

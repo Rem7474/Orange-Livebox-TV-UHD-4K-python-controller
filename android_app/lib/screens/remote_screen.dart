@@ -27,6 +27,8 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.service.addListener(_onServiceStatusChanged);
+    _status = widget.service.lastStatus;
     _refreshStatus();
     _startPolling();
   }
@@ -35,7 +37,14 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
   void dispose() {
     _pollTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    widget.service.removeListener(_onServiceStatusChanged);
     super.dispose();
+  }
+
+  // Reflète immédiatement le statut quand un autre écran (Paramètres, Chaînes)
+  // déclenche un getStatus(), sans attendre le prochain polling de cet écran.
+  void _onServiceStatusChanged() {
+    if (mounted) setState(() => _status = widget.service.lastStatus);
   }
 
   @override
@@ -84,9 +93,12 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
         ),
       );
     }
-    // Mettre à jour le statut après Power
-    if (key == RemoteKey.power) {
-      Future.delayed(const Duration(milliseconds: 1500), _refreshStatus);
+    if (ok) {
+      _refreshStatus();
+      // Le décodeur met un peu de temps à changer d'état après un Power.
+      if (key == RemoteKey.power) {
+        Future.delayed(const Duration(milliseconds: 1500), _refreshStatus);
+      }
     }
   }
 
