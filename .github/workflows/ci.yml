@@ -72,3 +72,32 @@ jobs:
           name: LiveboxTVController-CI-Build
           path: dist/LiveboxTVController.exe
           retention-days: 7
+
+  flutter-test:
+    name: Flutter Mobile Tests & Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v4
+
+      - name: Configuration de Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Installation des dépendances Flutter
+        run: |
+          cd android_app
+          flutter pub get
+
+      - name: Analyse statique du code Dart
+        run: |
+          cd android_app
+          flutter analyze
+
+      - name: Exécution des tests unitaires mobiles
+        run: |
+          cd android_app
+          flutter test
+

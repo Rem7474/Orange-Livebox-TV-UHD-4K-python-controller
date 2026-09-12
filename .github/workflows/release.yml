@@ -62,3 +62,44 @@ jobs:
             dist/LiveboxTVController.exe.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-android:
+    name: Build & Release Android APK
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configuration de Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Configuration de Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Compilation de l'APK Android Release
+        run: |
+          cd android_app
+          flutter pub get
+          flutter test
+          flutter build apk --release
+          cp build/app/outputs/flutter-apk/app-release.apk ../LiveboxTVController.apk
+          cd ..
+          sha256sum LiveboxTVController.apk > LiveboxTVController.apk.sha256
+
+      - name: Publication de l'APK sur la Release GitHub
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          files: |
+            LiveboxTVController.apk
+            LiveboxTVController.apk.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

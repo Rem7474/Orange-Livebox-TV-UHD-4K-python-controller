@@ -54,6 +54,22 @@ Vous pouvez également utiliser l'application sans installer Python :
 
 ---
 
+## 📱 Application Mobile Android
+
+Une application mobile Android moderne, fluide et autonome est disponible dans le dossier [`android_app/`](android_app/) :
+* **Télécommande tactile complète** : Marche/Arrêt, Pavé directionnel (D-Pad), Volume/Chaînes en commande basculante, Touches système et multimédia, pavé numérique escamotable et retour haptique.
+* **Guide TV & Zapping instantané** : Moteur de recherche parmi les plus de 300 chaînes Orange TV et système de mise en favoris en 1 clic.
+* **Scan réseau Wi-Fi automatique** : Détection sans configuration manuelle de l'adresse IP de votre décodeur TV sur le réseau local.
+* **Téléchargement direct de l'APK** : Disponible dans les [Releases GitHub](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases) (`LiveboxTVController.apk`).
+
+Pour compiler l'APK vous-même :
+```bash
+cd android_app
+flutter build apk --release
+```
+
+---
+
 ## ⌨️ Utilisation en Ligne de Commande (CLI)
 
 Développé et testé pour le décodeur TV UHD 4K Orange :

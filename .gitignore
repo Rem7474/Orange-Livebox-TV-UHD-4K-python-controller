@@ -7,3 +7,11 @@ build/
 dist/
 *.spec
 .pytest_cache/
+
+# Flutter / Android build outputs
+android_app/build/
+android_app/.dart_tool/
+android_app/.flutter-plugins-dependencies
+android_app/.pub-cache/
+android_app/.pub/
+*.apk
