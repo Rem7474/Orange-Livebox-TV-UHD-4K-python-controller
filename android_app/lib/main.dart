@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'licenses.dart';
 import 'screens/channels_screen.dart';
 import 'screens/remote_screen.dart';
 import 'screens/settings_screen.dart';
@@ -8,6 +9,7 @@ import 'services/livebox_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  registerOriginalProjectLicense();
 
   // Barre d'état système transparente
   SystemChrome.setSystemUIOverlayStyle(

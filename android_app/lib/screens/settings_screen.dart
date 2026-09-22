@@ -519,12 +519,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Padding(
-                padding: EdgeInsets.all(16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'À propos',
                       style: TextStyle(
                         color: Colors.white,
@@ -532,18 +532,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         fontSize: 16,
                       ),
                     ),
-                    SizedBox(height: 8),
-                    Text(
+                    const SizedBox(height: 8),
+                    const Text(
                       'Télécommande mobile pour décodeur Orange Livebox TV UHD 4K.',
                       style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
-                    SizedBox(height: 4),
-                    Text(
+                    const SizedBox(height: 4),
+                    const Text(
                       'API locale HTTP : port 8080/remoteControl/cmd (Opérations 1, 9, 10).',
                       style: TextStyle(color: Colors.white38, fontSize: 11),
                     ),
-                    SizedBox(height: 12),
-                    Row(
+                    const SizedBox(height: 12),
+                    const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
@@ -564,6 +564,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => showLicensePage(
+                          context: context,
+                          applicationName: 'Télécommande TV Orange',
+                          applicationLegalese:
+                              'Application indépendante développée par RemCorp, '
+                              'non affiliée à la société Orange.',
+                        ),
+                        icon: const Icon(Icons.description_outlined, size: 16),
+                        label: const Text('Licences open source'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFFF6600),
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 0),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
                     ),
                   ],
                 ),
