@@ -95,7 +95,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF121214),
       appBar: AppBar(
-        title: const Text('Chaînes TV Orange'),
+        title: const Text('Chaînes TV'),
         backgroundColor: const Color(0xFF1B1B22),
         elevation: 0,
         bottom: PreferredSize(
