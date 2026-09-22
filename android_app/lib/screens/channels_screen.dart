@@ -95,7 +95,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF121214),
       appBar: AppBar(
-        title: const Text('Chaînes TV Orange'),
+        title: const Text('Chaînes TV'),
         backgroundColor: const Color(0xFF1B1B22),
         elevation: 0,
         bottom: PreferredSize(
@@ -246,7 +246,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                       ),
                       child: Center(
                         child: Text(
-                          channel.number?.toString() ?? 'EPG',
+                          channel.number?.toString() ?? '–',
                           style: TextStyle(
                             color: channel.number != null
                                 ? const Color(0xFFFF6600)
@@ -263,13 +263,6 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                         fontSize: 15,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Code EPG: ${channel.epgId}',
-                      style: const TextStyle(
-                        color: Colors.white38,
-                        fontSize: 11,
                       ),
                     ),
                     trailing: Row(
