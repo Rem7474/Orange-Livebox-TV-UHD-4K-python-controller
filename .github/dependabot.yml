@@ -23,3 +23,15 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "ci(deps)"
+
+  # Veille et mises à jour des dépendances Flutter/Dart (android_app)
+  - package-ecosystem: "pub"
+    directory: "/android_app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"
