@@ -38,7 +38,7 @@ class LiveboxApp extends StatelessWidget {
     const orangeColor = Color(0xFFFF6600);
 
     return MaterialApp(
-      title: 'Télécommande Livebox TV',
+      title: 'Télécommande TV Orange',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

@@ -560,6 +560,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'API locale HTTP : port 8080/remoteControl/cmd (Opérations 1, 9, 10).',
                       style: TextStyle(color: Colors.white38, fontSize: 11),
                     ),
+                    SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 14,
+                          color: Colors.white38,
+                        ),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            "Application indépendante développée par RemCorp, "
+                            "non affiliée à la société Orange et non soutenue par elle.",
+                            style: TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

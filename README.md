@@ -62,7 +62,7 @@ Vous pouvez également utiliser l'application sans installer Python :
 
 ## 📱 Application Mobile Android
 
-Une application mobile Android moderne, fluide et autonome est disponible dans le dossier [`android_app/`](android_app/) :
+Une application mobile Android moderne, fluide et autonome, nommée **Télécommande TV Orange**, est disponible dans le dossier [`android_app/`](android_app/). Voir le [README dédié](android_app/README.md) pour le détail, y compris l'avertissement de non-affiliation à Orange.
 
 ### ✨ Fonctionnalités Mobile :
 * **Télécommande tactile intégrale** :

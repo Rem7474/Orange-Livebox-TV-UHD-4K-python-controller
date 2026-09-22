@@ -1,6 +1,8 @@
-﻿# Livebox TV Mobile Controller (Android)
+﻿# Télécommande TV Orange (Android)
 
 Application mobile Android moderne et autonome pour contrôler le décodeur **Orange Livebox TV UHD 4K** directement depuis votre smartphone connecté au Wi-Fi local.
+
+> **Avertissement de non-affiliation :** cette application est un outil indépendant développé par RemCorp. Elle n'est ni affiliée, ni soutenue, ni éditée par la société Orange. « Orange » et « Livebox » sont des marques déposées de leurs propriétaires respectifs, mentionnées ici uniquement pour indiquer la compatibilité matérielle.
 
 ---
 
@@ -22,7 +24,7 @@ Application mobile Android moderne et autonome pour contrôler le décodeur **Or
 - **Zapping en 1 clic** : Changement immédiat de chaîne sur le téléviseur.
 
 ### 3. 🔍 Scan Réseau & Détection Automatique (Opération 10)
-- **Recherche automatique** du décodeur sur le Wi-Fi (résolution DNS des noms d'hôtes `livebox-tv.home` et balayage HTTP du sous-réseau `192.168.1.x` sur le port 8080).
+- **Recherche automatique** du ou des décodeurs sur le Wi-Fi (résolution DNS des noms d'hôtes `livebox-tv.home` et balayage HTTP du sous-réseau `192.168.1.x` sur le port 8080). Si plusieurs décodeurs sont détectés (foyer multi-TV), un sélecteur permet de choisir celui à configurer.
 - **Statut en temps réel** : Nom du décodeur, état de marche/veille, contexte d'affichage (`LIVE`, `HOMEPAGE`).
 - **Configuration manuelle** : Saisie personnalisée de l'adresse IP et du port avec bouton de test immédiat.
 - **Persistance locale** : Paramètres sauvegardés automatiquement dans l'appareil.
