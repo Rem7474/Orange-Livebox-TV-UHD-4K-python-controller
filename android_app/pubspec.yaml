@@ -50,6 +50,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   mocktail: ^1.0.5
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -91,3 +92,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Configuration de flutter_launcher_icons (dart run flutter_launcher_icons).
+# Les sources assets/icon/*.png ne sont pas des assets d'app embarqués : elles
+# ne servent qu'à générer les icônes natives Android, pas à l'exécution.
+flutter_launcher_icons:
+  android: true
+  image_path: "../assets/logo.png"
+  adaptive_icon_background: "#FF6600"
+  adaptive_icon_foreground: "assets/icon/adaptive_icon_foreground.png"
