@@ -1,12 +1,18 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/decoder_status.dart';
 import '../services/discovery_service.dart';
 import '../services/livebox_service.dart';
 import '../services/network_permission_service.dart';
+
+const _privacyPolicyUrl =
+    'https://rem7474.github.io/Orange-Livebox-TV-UHD-4K-python-controller/privacy.html';
+const _contactEmail = 'contact@remcorp.fr';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -34,11 +40,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isTesting = false;
   DecoderStatus? _testResult;
 
+  String? _appVersion;
+
   @override
   void initState() {
     super.initState();
     _service = context.read<LiveboxService>();
     _loadCurrentSettings();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() => _appVersion = '${info.version} (${info.buildNumber})');
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await launchUrl(
+      Uri.parse(_privacyPolicyUrl),
+      mode: LaunchMode.externalApplication,
+    );
   }
 
   @override
@@ -542,6 +565,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       'API locale HTTP : port 8080/remoteControl/cmd (Opérations 1, 9, 10).',
                       style: TextStyle(color: Colors.white38, fontSize: 11),
                     ),
+                    if (_appVersion != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Version $_appVersion',
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Éditeur : RemCorp — $_contactEmail',
+                      style: TextStyle(color: Colors.white38, fontSize: 11),
+                    ),
                     const SizedBox(height: 12),
                     const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -566,25 +604,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: () => showLicensePage(
-                          context: context,
-                          applicationName: 'Télécommande TV Orange',
-                          applicationLegalese:
-                              'Application indépendante développée par RemCorp, '
-                              'non affiliée à la société Orange.',
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 4,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => showLicensePage(
+                            context: context,
+                            applicationName: 'Télécommande TV Orange',
+                            applicationVersion: _appVersion,
+                            applicationLegalese:
+                                'Application indépendante développée par RemCorp, '
+                                'non affiliée à la société Orange.',
+                          ),
+                          icon: const Icon(
+                            Icons.description_outlined,
+                            size: 16,
+                          ),
+                          label: const Text('Licences open source'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFFFF6600),
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
                         ),
-                        icon: const Icon(Icons.description_outlined, size: 16),
-                        label: const Text('Licences open source'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFFFF6600),
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 0),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        TextButton.icon(
+                          onPressed: _openPrivacyPolicy,
+                          icon: const Icon(
+                            Icons.privacy_tip_outlined,
+                            size: 16,
+                          ),
+                          label: const Text('Politique de confidentialité'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFFFF6600),
+                            padding: EdgeInsets.zero,
+                            minimumSize: const Size(0, 0),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
