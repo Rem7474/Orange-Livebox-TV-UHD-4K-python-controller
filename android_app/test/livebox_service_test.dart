@@ -1,20 +1,32 @@
-﻿import 'dart:convert';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:android_app/models/channel.dart';
 import 'package:android_app/models/decoder_status.dart';
 import 'package:android_app/models/remote_key.dart';
 import 'package:android_app/services/livebox_service.dart';
+import 'package:android_app/services/network_permission_service.dart';
 import 'package:android_app/services/storage_service.dart';
+
+class MockNetworkPermissionService extends Mock
+    implements NetworkPermissionService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('Modèles de données', () {
     test('Channel displayName et JSON', () {
-      final ch1 = Channel(name: 'TF1', number: 1, epgId: '192', isFavorite: true);
+      final ch1 = Channel(
+        name: 'TF1',
+        number: 1,
+        epgId: '192',
+        isFavorite: true,
+      );
       expect(ch1.displayName, '1 - TF1');
       expect(ch1.isFavorite, true);
 
@@ -41,8 +53,8 @@ void main() {
             'playedMediaId': '192',
             'playedMediaType': 'LIVE',
             'macAddress': '00:11:22:33:44:55',
-          }
-        }
+          },
+        },
       };
 
       final status = DecoderStatus.fromJson(mockData);
@@ -95,7 +107,7 @@ void main() {
 
         return http.Response(
           jsonEncode({
-            'result': {'responseCode': '0', 'message': 'ok'}
+            'result': {'responseCode': '0', 'message': 'ok'},
           }),
           200,
         );
@@ -114,7 +126,7 @@ void main() {
 
         return http.Response(
           jsonEncode({
-            'result': {'responseCode': '0', 'message': 'ok'}
+            'result': {'responseCode': '0', 'message': 'ok'},
           }),
           200,
         );
@@ -138,8 +150,8 @@ void main() {
                 'friendlyName': 'Décodeur TV UHD',
                 'activeStandbyState': '0',
                 'osdContext': 'HOMEPAGE',
-              }
-            }
+              },
+            },
           }),
           200,
         );
@@ -152,5 +164,123 @@ void main() {
       expect(status.friendlyName, 'Décodeur TV UHD');
       expect(status.osdContext, 'HOMEPAGE');
     });
+  });
+
+  group('LiveboxService — états chargement/erreur', () {
+    late StorageService storage;
+
+    setUp(() {
+      SharedPreferences.setMockInitialValues({
+        'livebox_ip': '192.168.1.50',
+        'livebox_port': '8080',
+      });
+      storage = StorageService();
+    });
+
+    test(
+      'sendKey renvoie false et un message clair sur SocketException',
+      () async {
+        final mockClient = MockClient((request) async {
+          throw const SocketException('Réseau inaccessible');
+        });
+
+        final service = LiveboxService(storage: storage, client: mockClient);
+        final success = await service.sendKey(RemoteKey.power);
+
+        expect(success, false);
+        expect(service.lastError, contains('Connexion impossible'));
+      },
+    );
+
+    test(
+      'changeChannel renvoie false et un message clair sur TimeoutException',
+      () async {
+        final mockClient = MockClient((request) async {
+          throw TimeoutException('trop long');
+        });
+
+        final service = LiveboxService(storage: storage, client: mockClient);
+        final success = await service.changeChannel('192');
+
+        expect(success, false);
+        expect(service.lastError, contains('Délai d\'attente dépassé'));
+      },
+    );
+
+    test(
+      'sendKey renvoie false et un message clair sur JSON invalide',
+      () async {
+        final mockClient = MockClient((request) async {
+          return http.Response('ceci n\'est pas du JSON', 200);
+        });
+
+        final service = LiveboxService(storage: storage, client: mockClient);
+        final success = await service.sendKey(RemoteKey.power);
+
+        expect(success, false);
+        expect(service.lastError, 'Réponse invalide reçue du décodeur.');
+      },
+    );
+
+    test(
+      'sendKey renvoie false et le code HTTP sur une erreur serveur',
+      () async {
+        final mockClient = MockClient((request) async {
+          return http.Response('Internal Server Error', 500);
+        });
+
+        final service = LiveboxService(storage: storage, client: mockClient);
+        final success = await service.sendKey(RemoteKey.power);
+
+        expect(success, false);
+        expect(service.lastError, 'Code HTTP 500');
+      },
+    );
+
+    test('getStatus renvoie un statut hors ligne sur erreur HTTP', () async {
+      final mockClient = MockClient((request) async {
+        return http.Response('Internal Server Error', 500);
+      });
+
+      final service = LiveboxService(storage: storage, client: mockClient);
+      final status = await service.getStatus();
+
+      expect(status.isOnline, false);
+      expect(status.errorMessage, 'Code HTTP 500');
+      // getStatus() doit aussi exposer le dernier statut via le getter.
+      expect(service.lastStatus, status);
+    });
+
+    test(
+      'les commandes sont bloquées quand la permission réseau local est refusée',
+      () async {
+        final mockPermissionService = MockNetworkPermissionService();
+        when(mockPermissionService.request).thenAnswer((_) async => false);
+
+        final mockClient = MockClient((request) async {
+          fail('Aucune requête HTTP ne doit être envoyée sans permission.');
+        });
+
+        final service = LiveboxService(
+          storage: storage,
+          client: mockClient,
+          permissionService: mockPermissionService,
+        );
+
+        final sendResult = await service.sendKey(RemoteKey.power);
+        expect(sendResult, false);
+        expect(
+          service.lastError,
+          "Autorisation d'accès au réseau local refusée.",
+        );
+
+        final changeResult = await service.changeChannel('192');
+        expect(changeResult, false);
+
+        final status = await service.getStatus();
+        expect(status.isOnline, false);
+        expect(status.permissionDenied, true);
+      },
+    );
   });
 }

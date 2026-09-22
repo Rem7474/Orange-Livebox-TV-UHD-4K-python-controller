@@ -1,4 +1,4 @@
-﻿class DecoderStatus {
+class DecoderStatus {
   final bool isOnline;
   final bool isOn;
   final String friendlyName;
@@ -28,7 +28,7 @@
   factory DecoderStatus.fromJson(Map<String, dynamic> json) {
     final result = json['result'] as Map<String, dynamic>? ?? {};
     final data = result['data'] as Map<String, dynamic>? ?? {};
-    
+
     final activeStandbyState = data['activeStandbyState']?.toString() ?? '1';
     final isOn = activeStandbyState == '0';
 

@@ -1,15 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '../models/decoder_status.dart';
 import '../services/discovery_service.dart';
 import '../services/livebox_service.dart';
 import '../services/network_permission_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  final LiveboxService service;
-
-  const SettingsScreen({super.key, required this.service});
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -20,6 +20,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _portController = TextEditingController();
 
   final DiscoveryService _discoveryService = DiscoveryService();
+  final NetworkPermissionService _permissionService =
+      NetworkPermissionService();
+
+  late final LiveboxService _service;
 
   bool _isScanning = false;
   String _scanStatusMessage = '';
@@ -33,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _service = context.read<LiveboxService>();
     _loadCurrentSettings();
   }
 
@@ -44,8 +49,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadCurrentSettings() async {
-    final ip = await widget.service.storage.getIp();
-    final port = await widget.service.storage.getPort();
+    final ip = await _service.storage.getIp();
+    final port = await _service.storage.getPort();
     if (mounted) {
       setState(() {
         _ipController.text = ip;
@@ -55,13 +60,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _saveSettings() async {
-    HapticFeedback.selectionClick();
+    unawaited(HapticFeedback.selectionClick());
     final ip = _ipController.text.trim();
     final port = _portController.text.trim();
     if (ip.isEmpty) return;
 
-    await widget.service.storage.setIp(ip);
-    await widget.service.storage.setPort(port.isEmpty ? '8080' : port);
+    await _service.storage.setIp(ip);
+    await _service.storage.setPort(port.isEmpty ? '8080' : port);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -96,7 +101,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     final permissionDenied =
-        device == null && !await NetworkPermissionService.isGranted();
+        device == null && !await _permissionService.isGranted();
 
     if (mounted) {
       setState(() {
@@ -113,7 +118,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Décodeur configuré : ${device.friendlyName} (${device.ip})'),
+            content: Text(
+              'Décodeur configuré : ${device.friendlyName} (${device.ip})',
+            ),
             backgroundColor: const Color(0xFFFF6600),
             duration: const Duration(seconds: 3),
           ),
@@ -130,10 +137,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     // Forcer la sauvegarde avant le test
-    await widget.service.storage.setIp(_ipController.text.trim());
-    await widget.service.storage.setPort(_portController.text.trim());
+    await _service.storage.setIp(_ipController.text.trim());
+    await _service.storage.setPort(_portController.text.trim());
 
-    final status = await widget.service.getStatus();
+    final status = await _service.getStatus();
 
     if (mounted) {
       setState(() {
@@ -160,7 +167,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // CARTE RECHERCHE AUTOMATIQUE
             Card(
               color: const Color(0xFF1E1E24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -171,10 +180,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF6600).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFFFF6600,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.radar_rounded, color: Color(0xFFFF6600)),
+                          child: const Icon(
+                            Icons.radar_rounded,
+                            color: Color(0xFFFF6600),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -191,7 +205,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               Text(
                                 'Détection automatique sur le Wi-Fi local',
-                                style: TextStyle(color: Colors.white54, fontSize: 12),
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -211,14 +228,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         (_isScanning || _foundDevice == null)) ...[
                       Text(
                         _scanStatusMessage,
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                       ),
                       if (_scanPermissionDenied) ...[
                         const SizedBox(height: 4),
                         TextButton.icon(
                           onPressed: openAppSettings,
                           icon: const Icon(Icons.settings_rounded, size: 16),
-                          label: const Text('Ouvrir les paramètres de l\'application'),
+                          label: const Text(
+                            'Ouvrir les paramètres de l\'application',
+                          ),
                           style: TextButton.styleFrom(
                             foregroundColor: const Color(0xFFFF6600),
                             padding: EdgeInsets.zero,
@@ -239,7 +261,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle_rounded, color: Color(0xFF00E676)),
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF00E676),
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Column(
@@ -254,7 +279,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   ),
                                   Text(
                                     '${_foundDevice!.ip}:${_foundDevice!.port} (${_foundDevice!.source})',
-                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -277,13 +305,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                               )
                             : const Icon(Icons.search_rounded),
-                        label: Text(_isScanning ? 'Scan en cours...' : 'Scanner le réseau'),
+                        label: Text(
+                          _isScanning
+                              ? 'Scan en cours...'
+                              : 'Scanner le réseau',
+                        ),
                         onPressed: _isScanning ? null : _startDiscovery,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFF6600),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ),
@@ -297,7 +331,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // CARTE CONFIGURATION MANUELLE
             Card(
               color: const Color(0xFF1E1E24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -321,7 +357,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         labelStyle: const TextStyle(color: Colors.white54),
                         hintText: '192.168.1.15',
                         hintStyle: const TextStyle(color: Colors.white24),
-                        prefixIcon: const Icon(Icons.lan_rounded, color: Color(0xFFFF6600)),
+                        prefixIcon: const Icon(
+                          Icons.lan_rounded,
+                          color: Color(0xFFFF6600),
+                        ),
                         filled: true,
                         fillColor: const Color(0xFF26262E),
                         border: OutlineInputBorder(
@@ -340,7 +379,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         labelStyle: const TextStyle(color: Colors.white54),
                         hintText: '8080',
                         hintStyle: const TextStyle(color: Colors.white24),
-                        prefixIcon: const Icon(Icons.tag_rounded, color: Color(0xFFFF6600)),
+                        prefixIcon: const Icon(
+                          Icons.tag_rounded,
+                          color: Color(0xFFFF6600),
+                        ),
                         filled: true,
                         fillColor: const Color(0xFF26262E),
                         border: OutlineInputBorder(
@@ -439,34 +481,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               const SizedBox(height: 6),
                               Text(
                                 'Appareil : ${_testResult!.friendlyName}',
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
                               ),
                               Text(
                                 'État : ${_testResult!.isOn ? "Allumé" : "En veille"} (${_testResult!.osdContext})',
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
                               ),
                               if (_testResult!.macAddress.isNotEmpty)
                                 Text(
                                   'Adresse MAC : ${_testResult!.macAddress}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
                                 ),
                             ] else ...[
                               const SizedBox(height: 4),
                               Text(
-                                _testResult!.errorMessage ?? 'Délai d\'attente dépassé.',
-                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                _testResult!.errorMessage ??
+                                    'Délai d\'attente dépassé.',
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
                               ),
                               if (_testResult!.permissionDenied) ...[
                                 const SizedBox(height: 8),
                                 TextButton.icon(
                                   onPressed: openAppSettings,
-                                  icon: const Icon(Icons.settings_rounded, size: 16),
-                                  label: const Text('Ouvrir les paramètres de l\'application'),
+                                  icon: const Icon(
+                                    Icons.settings_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    'Ouvrir les paramètres de l\'application',
+                                  ),
                                   style: TextButton.styleFrom(
                                     foregroundColor: const Color(0xFFFF6600),
                                     padding: EdgeInsets.zero,
                                     minimumSize: const Size(0, 0),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                 ),
                               ],
@@ -485,7 +546,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // CARTE À PROPOS
             Card(
               color: const Color(0xFF1E1E24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: const Padding(
                 padding: EdgeInsets.all(16),
                 child: Column(

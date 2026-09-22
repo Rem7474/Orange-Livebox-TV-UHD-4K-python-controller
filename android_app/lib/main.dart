@@ -1,5 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'screens/channels_screen.dart';
 import 'screens/remote_screen.dart';
 import 'screens/settings_screen.dart';
@@ -21,13 +22,16 @@ void main() async {
   final liveboxService = LiveboxService();
   await liveboxService.init();
 
-  runApp(LiveboxApp(service: liveboxService));
+  runApp(
+    ChangeNotifierProvider.value(
+      value: liveboxService,
+      child: const LiveboxApp(),
+    ),
+  );
 }
 
 class LiveboxApp extends StatelessWidget {
-  final LiveboxService service;
-
-  const LiveboxApp({super.key, required this.service});
+  const LiveboxApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -78,15 +82,13 @@ class LiveboxApp extends StatelessWidget {
           }),
         ),
       ),
-      home: MainNavigation(service: service),
+      home: const MainNavigation(),
     );
   }
 }
 
 class MainNavigation extends StatefulWidget {
-  final LiveboxService service;
-
-  const MainNavigation({super.key, required this.service});
+  const MainNavigation({super.key});
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
@@ -94,25 +96,16 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
-  late final List<Widget> _screens;
-
-  @override
-  void initState() {
-    super.initState();
-    _screens = [
-      RemoteScreen(service: widget.service),
-      ChannelsScreen(service: widget.service),
-      SettingsScreen(service: widget.service),
-    ];
-  }
+  static const List<Widget> _screens = [
+    RemoteScreen(),
+    ChannelsScreen(),
+    SettingsScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (idx) {

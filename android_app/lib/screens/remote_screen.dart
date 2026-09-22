@@ -1,24 +1,22 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../models/decoder_status.dart';
+import 'package:provider/provider.dart';
 import '../models/remote_key.dart';
 import '../services/livebox_service.dart';
 import '../widgets/status_banner.dart';
 
 class RemoteScreen extends StatefulWidget {
-  final LiveboxService service;
-
-  const RemoteScreen({super.key, required this.service});
+  const RemoteScreen({super.key});
 
   @override
   State<RemoteScreen> createState() => _RemoteScreenState();
 }
 
-class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver {
+class _RemoteScreenState extends State<RemoteScreen>
+    with WidgetsBindingObserver {
   static const _pollInterval = Duration(seconds: 10);
 
-  DecoderStatus? _status;
   bool _isRefreshing = false;
   bool _showNumpad = false;
   Timer? _pollTimer;
@@ -27,8 +25,6 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    widget.service.addListener(_onServiceStatusChanged);
-    _status = widget.service.lastStatus;
     _refreshStatus();
     _startPolling();
   }
@@ -37,14 +33,7 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
   void dispose() {
     _pollTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
-    widget.service.removeListener(_onServiceStatusChanged);
     super.dispose();
-  }
-
-  // Reflète immédiatement le statut quand un autre écran (Paramètres, Chaînes)
-  // déclenche un getStatus(), sans attendre le prochain polling de cet écran.
-  void _onServiceStatusChanged() {
-    if (mounted) setState(() => _status = widget.service.lastStatus);
   }
 
   @override
@@ -65,20 +54,16 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
   Future<void> _refreshStatus() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
-    final status = await widget.service.getStatus();
-    if (mounted) {
-      setState(() {
-        _status = status;
-        _isRefreshing = false;
-      });
-    }
+    await context.read<LiveboxService>().getStatus();
+    if (mounted) setState(() => _isRefreshing = false);
   }
 
   Future<void> _sendKey(RemoteKey key) async {
-    HapticFeedback.lightImpact();
-    final ok = await widget.service.sendKey(key);
+    unawaited(HapticFeedback.lightImpact());
+    final service = context.read<LiveboxService>();
+    final ok = await service.sendKey(key);
     if (!ok && mounted) {
-      final reason = widget.service.lastError;
+      final reason = service.lastError;
       ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -94,7 +79,7 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
       );
     }
     if (ok) {
-      _refreshStatus();
+      unawaited(_refreshStatus());
       // Le décodeur met un peu de temps à changer d'état après un Power.
       if (key == RemoteKey.power) {
         Future.delayed(const Duration(milliseconds: 1500), _refreshStatus);
@@ -162,10 +147,10 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
           Expanded(
             child: InkWell(
               onTap: onUp,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(36)),
-              child: Center(
-                child: Icon(upIcon, color: Colors.white, size: 28),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(36),
               ),
+              child: Center(child: Icon(upIcon, color: Colors.white, size: 28)),
             ),
           ),
           Padding(
@@ -187,7 +172,9 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
           Expanded(
             child: InkWell(
               onTap: onDown,
-              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(36)),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(36),
+              ),
               child: Center(
                 child: Icon(downIcon, color: Colors.white, size: 28),
               ),
@@ -227,7 +214,10 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
             top: 6,
             child: IconButton(
               iconSize: 34,
-              icon: const Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white),
+              icon: const Icon(
+                Icons.keyboard_arrow_up_rounded,
+                color: Colors.white,
+              ),
               onPressed: () => _sendKey(RemoteKey.up),
               tooltip: 'Haut',
             ),
@@ -237,7 +227,10 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
             bottom: 6,
             child: IconButton(
               iconSize: 34,
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white),
+              icon: const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Colors.white,
+              ),
               onPressed: () => _sendKey(RemoteKey.down),
               tooltip: 'Bas',
             ),
@@ -247,7 +240,10 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
             left: 6,
             child: IconButton(
               iconSize: 34,
-              icon: const Icon(Icons.keyboard_arrow_left_rounded, color: Colors.white),
+              icon: const Icon(
+                Icons.keyboard_arrow_left_rounded,
+                color: Colors.white,
+              ),
               onPressed: () => _sendKey(RemoteKey.left),
               tooltip: 'Gauche',
             ),
@@ -257,7 +253,10 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
             right: 6,
             child: IconButton(
               iconSize: 34,
-              icon: const Icon(Icons.keyboard_arrow_right_rounded, color: Colors.white),
+              icon: const Icon(
+                Icons.keyboard_arrow_right_rounded,
+                color: Colors.white,
+              ),
               onPressed: () => _sendKey(RemoteKey.right),
               tooltip: 'Droite',
             ),
@@ -316,7 +315,9 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Material(
                     color: const Color(0xFF26262E),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     child: InkWell(
                       onTap: () => _sendKey(key),
                       borderRadius: BorderRadius.circular(14),
@@ -348,7 +349,9 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
               children: [
                 Material(
                   color: const Color(0xFF26262E),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   child: InkWell(
                     onTap: () => _sendKey(RemoteKey.num0),
                     borderRadius: BorderRadius.circular(14),
@@ -378,6 +381,7 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
+    final status = context.watch<LiveboxService>().lastStatus;
     return Scaffold(
       backgroundColor: const Color(0xFF121214),
       body: SafeArea(
@@ -391,7 +395,7 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
               children: [
                 // Bannière de statut connectivité
                 StatusBanner(
-                  status: _status,
+                  status: status,
                   isLoading: _isRefreshing,
                   onRefresh: _refreshStatus,
                 ),
@@ -407,7 +411,7 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
                       _buildCircleButton(
                         icon: Icons.power_settings_new_rounded,
                         label: 'Power',
-                        color: _status?.isOn == true
+                        color: status?.isOn == true
                             ? const Color(0xFFE53935)
                             : const Color(0xFF2E7D32),
                         onTap: () => _sendKey(RemoteKey.power),
@@ -420,9 +424,13 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
                         size: 50,
                       ),
                       _buildCircleButton(
-                        icon: _showNumpad ? Icons.dialpad : Icons.dialpad_outlined,
+                        icon: _showNumpad
+                            ? Icons.dialpad
+                            : Icons.dialpad_outlined,
                         label: 'Clavier',
-                        color: _showNumpad ? const Color(0xFFFF6600) : const Color(0xFF26262E),
+                        color: _showNumpad
+                            ? const Color(0xFFFF6600)
+                            : const Color(0xFF26262E),
                         onTap: () {
                           HapticFeedback.selectionClick();
                           setState(() => _showNumpad = !_showNumpad);
@@ -439,10 +447,7 @@ class _RemoteScreenState extends State<RemoteScreen> with WidgetsBindingObserver
                   ),
                 ),
 
-                if (_showNumpad) ...[
-                  const SizedBox(height: 8),
-                  _buildNumpad(),
-                ],
+                if (_showNumpad) ...[const SizedBox(height: 8), _buildNumpad()],
 
                 const SizedBox(height: 20),
 
