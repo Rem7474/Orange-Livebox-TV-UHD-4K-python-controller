@@ -328,7 +328,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Adresse IP & Port du Décodeur',
+                      'Adresse IP du Décodeur',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -357,28 +357,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _portController,
-                      style: const TextStyle(color: Colors.white),
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Port (défaut : 8080)',
-                        labelStyle: const TextStyle(color: Colors.white54),
-                        hintText: '8080',
-                        hintStyle: const TextStyle(color: Colors.white24),
-                        prefixIcon: const Icon(
-                          Icons.tag_rounded,
-                          color: Color(0xFFFF6600),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFF26262E),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
+                    // Le champ de port n'est plus affiché : tous les décodeurs Orange
+                    // Livebox TV utilisent le port 8080. _portController et
+                    // StorageService.getPort/setPort restent en place (valeur par
+                    // défaut '8080') pour pouvoir le ré-exposer facilement si besoin.
                     const SizedBox(height: 14),
                     Row(
                       children: [
