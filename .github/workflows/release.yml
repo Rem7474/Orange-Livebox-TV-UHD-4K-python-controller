@@ -90,7 +90,7 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/livebox-release.jks"
 
-      - name: Compilation de l'APK Android Release
+      - name: Compilation de l'APK et de l'AAB Android Release
         env:
           ANDROID_RELEASE_KEYSTORE_PATH: ${{ env.HAS_RELEASE_KEYSTORE == 'true' && format('{0}/livebox-release.jks', runner.temp) || '' }}
           ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
@@ -101,17 +101,22 @@ jobs:
           flutter pub get
           flutter test
           flutter build apk --release
-          cp build/app/outputs/flutter-apk/app-release.apk ../LiveboxTVController.apk
+          flutter build appbundle --release
+          cp build/app/outputs/flutter-apk/app-release.apk ../TelecommandeTVOrange.apk
+          cp build/app/outputs/bundle/release/app-release.aab ../TelecommandeTVOrange.aab
           cd ..
-          sha256sum LiveboxTVController.apk > LiveboxTVController.apk.sha256
+          sha256sum TelecommandeTVOrange.apk > TelecommandeTVOrange.apk.sha256
+          sha256sum TelecommandeTVOrange.aab > TelecommandeTVOrange.aab.sha256
 
-      - name: Publication de l'APK sur la Release GitHub
+      - name: Publication de l'APK et de l'AAB sur la Release GitHub
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
           files: |
-            LiveboxTVController.apk
-            LiveboxTVController.apk.sha256
+            TelecommandeTVOrange.apk
+            TelecommandeTVOrange.apk.sha256
+            TelecommandeTVOrange.aab
+            TelecommandeTVOrange.aab.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

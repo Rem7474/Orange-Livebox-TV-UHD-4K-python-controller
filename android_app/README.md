@@ -57,3 +57,27 @@ flutter build apk --release
 ```
 Le fichier généré se situe dans :
 `build/app/outputs/flutter-apk/app-release.apk`
+
+### Compiler l'AAB Release (format requis pour le Play Store)
+```bash
+cd android_app
+flutter build appbundle --release
+```
+Le fichier généré se situe dans :
+`build/app/outputs/bundle/release/app-release.aab`
+
+---
+
+## 🔒 Permissions utilisées
+
+L'application ne collecte, ne stocke et ne transmet **aucune donnée personnelle** à un serveur externe : l'adresse IP/port du décodeur et la liste des chaînes favorites restent stockés localement sur l'appareil (`SharedPreferences`). Aucun SDK d'analytics, de publicité ou de tracking n'est intégré.
+
+| Permission Android | Pourquoi |
+|---|---|
+| `INTERNET` | Envoyer les commandes HTTP au décodeur sur le réseau local (télécommande, zapping, statut). |
+| `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` | Vérifier la connectivité Wi-Fi avant de tenter une requête ou un scan. |
+| `ACCESS_LOCAL_NETWORK` | Autoriser les requêtes HTTP vers des adresses IP privées (API Android 16+ dédiée à cet usage, remplace la géolocalisation historiquement requise pour le scan réseau). |
+| `NEARBY_WIFI_DEVICES` (`neverForLocation`) | Découverte automatique du décodeur par scan du sous-réseau local, sans accès à la géolocalisation. |
+| `CHANGE_WIFI_MULTICAST_STATE`, `CHANGE_NETWORK_STATE` | Fiabiliser la résolution réseau locale pendant le scan de découverte. |
+
+Aucune permission de géolocalisation, caméra, contacts, stockage ou téléphonie n'est demandée.

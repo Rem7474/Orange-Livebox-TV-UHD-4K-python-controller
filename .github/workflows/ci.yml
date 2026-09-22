@@ -124,3 +124,8 @@ jobs:
           cd android_app
           flutter build apk --release
 
+      - name: Build AAB de vérification (format requis pour le Play Store)
+        run: |
+          cd android_app
+          flutter build appbundle --release
+
