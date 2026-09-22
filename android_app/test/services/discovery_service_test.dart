@@ -73,7 +73,7 @@ void main() {
 
   group('DiscoveryService.discover — permission refusée', () {
     test(
-      'renvoie null immédiatement si la permission réseau local est refusée',
+      'renvoie une liste vide immédiatement si la permission réseau local est refusée',
       () async {
         final mockPermissionService = MockNetworkPermissionService();
         when(mockPermissionService.request).thenAnswer((_) async => false);
@@ -88,14 +88,40 @@ void main() {
         );
 
         final messages = <String>[];
-        final device = await service.discover(
+        final devices = await service.discover(
           onProgress: (msg, progress) => messages.add(msg),
         );
 
-        expect(device, isNull);
+        expect(devices, isEmpty);
         expect(messages, isNotEmpty);
         expect(messages.last, contains('Autorisation'));
       },
     );
+  });
+
+  group('DiscoveryService.discover — agrégation multi-décodeurs', () {
+    test('ne s\'arrête pas au premier décodeur trouvé et renvoie tous les '
+        'décodeurs, triés numériquement par IP', () async {
+      final mockClient = MockClient((request) async {
+        final host = request.url.host;
+        // Simule deux décodeurs qui répondent, sur des IP différentes du
+        // même sous-réseau balayé en priorité (10 à 60).
+        if (host.endsWith('.20') || host.endsWith('.15')) {
+          return http.Response(
+            '{"result": {"responseCode": "0", "message": "ok", '
+            '"data": {"friendlyName": "Décodeur $host"}}}',
+            200,
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+
+      final service = DiscoveryService(client: mockClient);
+      final devices = await service.discover();
+
+      expect(devices.length, 2);
+      expect(devices[0].ip, endsWith('.15'));
+      expect(devices[1].ip, endsWith('.20'));
+    }, timeout: const Timeout(Duration(seconds: 30)));
   });
 }

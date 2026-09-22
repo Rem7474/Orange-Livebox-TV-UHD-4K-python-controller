@@ -41,7 +41,10 @@ class DiscoveryService {
     'orangetv.home',
   ];
 
-  Future<DiscoveredDevice?> discover({
+  /// Recherche tous les décodeurs joignables sur le réseau local, sans
+  /// s'arrêter au premier trouvé, pour permettre à l'utilisateur de choisir
+  /// s'il y en a plusieurs (foyer avec plusieurs décodeurs Orange).
+  Future<List<DiscoveredDevice>> discover({
     void Function(String message, double progress)? onProgress,
   }) async {
     if (!await _permissionService.request()) {
@@ -49,8 +52,14 @@ class DiscoveryService {
         "Autorisation d'accès au réseau local refusée. Activez-la dans les paramètres de l'application.",
         1.0,
       );
-      return null;
+      return [];
     }
+
+    // Dédupliqué par IP : un même décodeur peut répondre à la fois à un nom
+    // DNS et au scan de sous-réseau.
+    final foundByIp = <String, DiscoveredDevice>{};
+    void addDevice(DiscoveredDevice dev) =>
+        foundByIp.putIfAbsent(dev.ip, () => dev);
 
     // 1. Recherche par noms d'hôtes DNS
     onProgress?.call("Recherche par noms d'hôtes DNS...", 0.1);
@@ -64,11 +73,11 @@ class DiscoveryService {
           if (addr.type == InternetAddressType.IPv4) {
             final dev = await probeDevice(addr.address, source: "DNS '$host'");
             if (dev != null) {
+              addDevice(dev);
               onProgress?.call(
                 "Décodeur trouvé : ${dev.friendlyName} (${dev.ip})",
-                1.0,
+                0.1,
               );
-              return dev;
             }
           }
         }
@@ -141,17 +150,25 @@ class DiscoveryService {
       final results = await Future.wait(futures);
       for (final dev in results) {
         if (dev != null) {
+          addDevice(dev);
           onProgress?.call(
             "Décodeur trouvé : ${dev.friendlyName} (${dev.ip})",
-            1.0,
+            progress,
           );
-          return dev;
         }
       }
     }
 
-    onProgress?.call("Aucun décodeur TV détecté.", 1.0);
-    return null;
+    final devices = foundByIp.values.toList()
+      ..sort((a, b) => _compareIps(a.ip, b.ip));
+
+    onProgress?.call(
+      devices.isEmpty
+          ? "Aucun décodeur TV détecté."
+          : "${devices.length} décodeur(s) TV détecté(s).",
+      1.0,
+    );
+    return devices;
   }
 
   Future<DiscoveredDevice?> probeDevice(
@@ -183,4 +200,16 @@ class DiscoveryService {
     } catch (_) {}
     return null;
   }
+}
+
+/// Compare deux adresses IPv4 numériquement (et non lexicographiquement),
+/// pour que '...192.168.1.9' se trie bien avant '...192.168.1.10'.
+int _compareIps(String a, String b) {
+  final partsA = a.split('.').map(int.parse).toList();
+  final partsB = b.split('.').map(int.parse).toList();
+  for (var i = 0; i < partsA.length && i < partsB.length; i++) {
+    final cmp = partsA[i].compareTo(partsB[i]);
+    if (cmp != 0) return cmp;
+  }
+  return 0;
 }
