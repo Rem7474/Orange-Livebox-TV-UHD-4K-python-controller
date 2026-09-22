@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Politique de confidentialité — Télécommande TV Orange</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --orange: #FF6600;
+    --bg: #121214;
+    --card: #1E1E24;
+    --text: #F2F2F2;
+    --muted: #B3B3B8;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+  }
+  h1 {
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+  }
+  .updated {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 24px;
+  }
+  .disclaimer {
+    background: var(--card);
+    border-left: 4px solid var(--orange);
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 32px;
+    font-size: 0.95rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    color: var(--orange);
+    margin-top: 36px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #333;
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+  }
+  a { color: var(--orange); }
+  code {
+    background: var(--card);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  footer {
+    margin-top: 48px;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Politique de confidentialité</h1>
+  <p class="updated">Application « Télécommande TV Orange » — Dernière mise à jour : 22 septembre 2026</p>
+
+  <div class="disclaimer">
+    <strong>Avertissement de non-affiliation :</strong> cette application est un outil indépendant développé par RemCorp. Elle n'est ni affiliée, ni soutenue, ni éditée par la société Orange. « Orange » et « Livebox » sont des marques déposées de leurs propriétaires respectifs, mentionnées ici uniquement pour indiquer la compatibilité matérielle avec le décodeur Orange Livebox TV UHD 4K.
+  </div>
+
+  <h2>Résumé</h2>
+  <p><strong>Télécommande TV Orange ne collecte, ne stocke sur un serveur, ni ne transmet à un tiers aucune donnée personnelle.</strong> L'application fonctionne entièrement en local : elle communique uniquement avec le décodeur TV présent sur votre réseau Wi-Fi domestique, et ne contient aucun serveur, aucun compte utilisateur, aucun SDK publicitaire ou d'analyse.</p>
+
+  <h2>Quelles données sont stockées, et où</h2>
+  <p>Les seules informations conservées par l'application sont :</p>
+  <ul>
+    <li>l'adresse IP et le port du décodeur TV configuré ;</li>
+    <li>la liste des chaînes marquées en favori.</li>
+  </ul>
+  <p>Ces informations sont stockées <strong>uniquement sur votre appareil</strong>, via le mécanisme <code>SharedPreferences</code> d'Android. Elles ne sont jamais envoyées à un serveur, jamais synchronisées, jamais partagées avec un tiers. Désinstaller l'application ou effacer ses données dans les paramètres Android supprime immédiatement et définitivement ces informations.</p>
+  <p>L'application n'ayant pas de compte utilisateur, il n'existe pas de procédure de suppression de compte à distance : la désinstallation suffit à effacer toutes les données locales.</p>
+
+  <h2>Communications réseau</h2>
+  <p>L'application envoie des requêtes HTTP en clair, exclusivement vers l'adresse IP locale de votre décodeur TV sur votre réseau Wi-Fi domestique (jamais vers Internet), afin de :</p>
+  <ul>
+    <li>envoyer les commandes de la télécommande (allumage, volume, navigation...) ;</li>
+    <li>changer de chaîne ;</li>
+    <li>lire l'état du décodeur (allumé/veille, chaîne en cours) ;</li>
+    <li>détecter automatiquement le décodeur sur le réseau local.</li>
+  </ul>
+
+  <h2>Permissions Android utilisées</h2>
+  <table>
+    <tr><th>Permission</th><th>Usage</th></tr>
+    <tr><td>Internet</td><td>Envoyer les commandes HTTP au décodeur sur le réseau local.</td></tr>
+    <tr><td>État réseau / Wi-Fi</td><td>Vérifier la connectivité avant une requête ou un scan.</td></tr>
+    <tr><td>Accès au réseau local</td><td>Autoriser les requêtes vers des adresses IP privées (API dédiée, sans lien avec la géolocalisation).</td></tr>
+    <tr><td>Appareils Wi-Fi à proximité</td><td>Découverte automatique du décodeur par scan du sous-réseau local, sans accès à la position de l'appareil.</td></tr>
+  </table>
+  <p>Aucune permission de géolocalisation, caméra, contacts, stockage de fichiers ou téléphonie n'est demandée.</p>
+
+  <h2>Services tiers</h2>
+  <p>Aucun SDK d'analytics, de publicité, de suivi (tracking) ou de rapport de plantage n'est intégré à l'application.</p>
+
+  <h2>Enfants</h2>
+  <p>L'application ne collectant aucune donnée personnelle, elle ne présente pas de risque spécifique pour les mineurs et ne cible pas particulièrement ce public.</p>
+
+  <h2>Modifications de cette politique</h2>
+  <p>Cette page peut être mise à jour si l'application évolue. La date de dernière modification est indiquée en haut de page.</p>
+
+  <h2>Contact</h2>
+  <p>Pour toute question relative à cette politique de confidentialité : <a href="mailto:contact@remcorp.fr">contact@remcorp.fr</a></p>
+
+  <footer>
+    Code source de l'application disponible sur <a href="https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller">GitHub</a>.
+  </footer>
+</main>
+</body>
+</html>
