@@ -97,15 +97,27 @@ jobs:
           cd android_app
           flutter pub get
 
+      - name: Vérification du formatage Dart
+        run: |
+          cd android_app
+          dart format --set-exit-if-changed .
+
       - name: Analyse statique du code Dart
         run: |
           cd android_app
           flutter analyze
 
-      - name: Exécution des tests unitaires mobiles
+      - name: Exécution des tests unitaires mobiles (avec couverture)
         run: |
           cd android_app
-          flutter test
+          flutter test --coverage
+
+      - name: Sauvegarde du rapport de couverture
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-coverage-lcov
+          path: android_app/coverage/lcov.info
+          retention-days: 7
 
       - name: Build APK de vérification (sans signing release)
         run: |

@@ -1,15 +1,15 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '../models/decoder_status.dart';
 import '../services/discovery_service.dart';
 import '../services/livebox_service.dart';
 import '../services/network_permission_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  final LiveboxService service;
-
-  const SettingsScreen({super.key, required this.service});
+  const SettingsScreen({super.key});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -20,11 +20,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _portController = TextEditingController();
 
   final DiscoveryService _discoveryService = DiscoveryService();
+  final NetworkPermissionService _permissionService =
+      NetworkPermissionService();
+
+  late final LiveboxService _service;
 
   bool _isScanning = false;
   String _scanStatusMessage = '';
   double _scanProgress = 0.0;
-  DiscoveredDevice? _foundDevice;
+  List<DiscoveredDevice> _foundDevices = [];
   bool _scanPermissionDenied = false;
 
   bool _isTesting = false;
@@ -33,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _service = context.read<LiveboxService>();
     _loadCurrentSettings();
   }
 
@@ -44,8 +49,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadCurrentSettings() async {
-    final ip = await widget.service.storage.getIp();
-    final port = await widget.service.storage.getPort();
+    final ip = await _service.storage.getIp();
+    final port = await _service.storage.getPort();
     if (mounted) {
       setState(() {
         _ipController.text = ip;
@@ -54,16 +59,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _saveSettings() async {
-    HapticFeedback.selectionClick();
+  Future<void> _saveSettings({bool showSnackbar = true}) async {
+    unawaited(HapticFeedback.selectionClick());
     final ip = _ipController.text.trim();
     final port = _portController.text.trim();
     if (ip.isEmpty) return;
 
-    await widget.service.storage.setIp(ip);
-    await widget.service.storage.setPort(port.isEmpty ? '8080' : port);
+    await _service.storage.setIp(ip);
+    await _service.storage.setPort(port.isEmpty ? '8080' : port);
 
-    if (mounted) {
+    if (mounted && showSnackbar) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Configuration réseau sauvegardée !'),
@@ -80,11 +85,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _isScanning = true;
       _scanProgress = 0.0;
       _scanStatusMessage = 'Démarrage du scan...';
-      _foundDevice = null;
+      _foundDevices = [];
       _scanPermissionDenied = false;
     });
 
-    final device = await _discoveryService.discover(
+    final devices = await _discoveryService.discover(
       onProgress: (msg, prog) {
         if (mounted) {
           setState(() {
@@ -96,30 +101,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     final permissionDenied =
-        device == null && !await NetworkPermissionService.isGranted();
+        devices.isEmpty && !await _permissionService.isGranted();
 
     if (mounted) {
       setState(() {
         _isScanning = false;
-        _foundDevice = device;
+        _foundDevices = devices;
         _scanPermissionDenied = permissionDenied;
       });
 
-      if (device != null) {
-        _ipController.text = device.ip;
-        _portController.text = device.port;
-        await _saveSettings();
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Décodeur configuré : ${device.friendlyName} (${device.ip})'),
-            backgroundColor: const Color(0xFFFF6600),
-            duration: const Duration(seconds: 3),
-          ),
-        );
+      // Un seul décodeur trouvé : on le configure directement, comme avant.
+      // S'il y en a plusieurs, l'utilisateur choisit dans la liste affichée.
+      if (devices.length == 1) {
+        await _selectDevice(devices.first);
       }
     }
+  }
+
+  Future<void> _selectDevice(DiscoveredDevice device) async {
+    _ipController.text = device.ip;
+    _portController.text = device.port;
+    await _saveSettings(showSnackbar: false);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Décodeur configuré : ${device.friendlyName} (${device.ip})',
+        ),
+        backgroundColor: const Color(0xFFFF6600),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   Future<void> _testConnection() async {
@@ -130,10 +143,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     // Forcer la sauvegarde avant le test
-    await widget.service.storage.setIp(_ipController.text.trim());
-    await widget.service.storage.setPort(_portController.text.trim());
+    await _service.storage.setIp(_ipController.text.trim());
+    await _service.storage.setPort(_portController.text.trim());
 
-    final status = await widget.service.getStatus();
+    final status = await _service.getStatus();
 
     if (mounted) {
       setState(() {
@@ -160,7 +173,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // CARTE RECHERCHE AUTOMATIQUE
             Card(
               color: const Color(0xFF1E1E24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -171,10 +186,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF6600).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFFFF6600,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.radar_rounded, color: Color(0xFFFF6600)),
+                          child: const Icon(
+                            Icons.radar_rounded,
+                            color: Color(0xFFFF6600),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         const Expanded(
@@ -191,7 +211,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               Text(
                                 'Détection automatique sur le Wi-Fi local',
-                                style: TextStyle(color: Colors.white54, fontSize: 12),
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
                               ),
                             ],
                           ),
@@ -208,17 +231,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       const SizedBox(height: 8),
                     ],
                     if (_scanStatusMessage.isNotEmpty &&
-                        (_isScanning || _foundDevice == null)) ...[
+                        (_isScanning || _foundDevices.isEmpty)) ...[
                       Text(
                         _scanStatusMessage,
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                       ),
                       if (_scanPermissionDenied) ...[
                         const SizedBox(height: 4),
                         TextButton.icon(
                           onPressed: openAppSettings,
                           icon: const Icon(Icons.settings_rounded, size: 16),
-                          label: const Text('Ouvrir les paramètres de l\'application'),
+                          label: const Text(
+                            'Ouvrir les paramètres de l\'application',
+                          ),
                           style: TextButton.styleFrom(
                             foregroundColor: const Color(0xFFFF6600),
                             padding: EdgeInsets.zero,
@@ -229,40 +257,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                       const SizedBox(height: 12),
                     ],
-                    if (_foundDevice != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2E7D32).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF2E7D32)),
+                    if (_foundDevices.isNotEmpty) ...[
+                      if (_foundDevices.length > 1) ...[
+                        Text(
+                          '${_foundDevices.length} décodeurs détectés — choisissez-en un :',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.check_circle_rounded, color: Color(0xFF00E676)),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    _foundDevice!.friendlyName,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    '${_foundDevice!.ip}:${_foundDevice!.port} (${_foundDevice!.source})',
-                                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        const SizedBox(height: 8),
+                      ],
+                      for (final device in _foundDevices)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _DiscoveredDeviceTile(
+                            device: device,
+                            isActive: _ipController.text.trim() == device.ip,
+                            onTap: () => _selectDevice(device),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 4),
                     ],
                     SizedBox(
                       width: double.infinity,
@@ -277,13 +293,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ),
                               )
                             : const Icon(Icons.search_rounded),
-                        label: Text(_isScanning ? 'Scan en cours...' : 'Scanner le réseau'),
+                        label: Text(
+                          _isScanning
+                              ? 'Scan en cours...'
+                              : 'Scanner le réseau',
+                        ),
                         onPressed: _isScanning ? null : _startDiscovery,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFF6600),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                         ),
                       ),
                     ),
@@ -297,7 +319,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // CARTE CONFIGURATION MANUELLE
             Card(
               color: const Color(0xFF1E1E24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -321,7 +345,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         labelStyle: const TextStyle(color: Colors.white54),
                         hintText: '192.168.1.15',
                         hintStyle: const TextStyle(color: Colors.white24),
-                        prefixIcon: const Icon(Icons.lan_rounded, color: Color(0xFFFF6600)),
+                        prefixIcon: const Icon(
+                          Icons.lan_rounded,
+                          color: Color(0xFFFF6600),
+                        ),
                         filled: true,
                         fillColor: const Color(0xFF26262E),
                         border: OutlineInputBorder(
@@ -340,7 +367,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         labelStyle: const TextStyle(color: Colors.white54),
                         hintText: '8080',
                         hintStyle: const TextStyle(color: Colors.white24),
-                        prefixIcon: const Icon(Icons.tag_rounded, color: Color(0xFFFF6600)),
+                        prefixIcon: const Icon(
+                          Icons.tag_rounded,
+                          color: Color(0xFFFF6600),
+                        ),
                         filled: true,
                         fillColor: const Color(0xFF26262E),
                         border: OutlineInputBorder(
@@ -439,34 +469,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               const SizedBox(height: 6),
                               Text(
                                 'Appareil : ${_testResult!.friendlyName}',
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
                               ),
                               Text(
                                 'État : ${_testResult!.isOn ? "Allumé" : "En veille"} (${_testResult!.osdContext})',
-                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
                               ),
                               if (_testResult!.macAddress.isNotEmpty)
                                 Text(
                                   'Adresse MAC : ${_testResult!.macAddress}',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
                                 ),
                             ] else ...[
                               const SizedBox(height: 4),
                               Text(
-                                _testResult!.errorMessage ?? 'Délai d\'attente dépassé.',
-                                style: const TextStyle(color: Colors.white54, fontSize: 12),
+                                _testResult!.errorMessage ??
+                                    'Délai d\'attente dépassé.',
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                ),
                               ),
                               if (_testResult!.permissionDenied) ...[
                                 const SizedBox(height: 8),
                                 TextButton.icon(
                                   onPressed: openAppSettings,
-                                  icon: const Icon(Icons.settings_rounded, size: 16),
-                                  label: const Text('Ouvrir les paramètres de l\'application'),
+                                  icon: const Icon(
+                                    Icons.settings_rounded,
+                                    size: 16,
+                                  ),
+                                  label: const Text(
+                                    'Ouvrir les paramètres de l\'application',
+                                  ),
                                   style: TextButton.styleFrom(
                                     foregroundColor: const Color(0xFFFF6600),
                                     padding: EdgeInsets.zero,
                                     minimumSize: const Size(0, 0),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
                                 ),
                               ],
@@ -485,7 +534,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // CARTE À PROPOS
             Card(
               color: const Color(0xFF1E1E24),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               child: const Padding(
                 padding: EdgeInsets.all(16),
                 child: Column(
@@ -514,6 +565,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Carte représentant un décodeur détecté lors du scan réseau, permettant de
+/// différencier plusieurs décodeurs trouvés (nom, IP:port, méthode de
+/// détection) et de choisir celui à configurer.
+class _DiscoveredDeviceTile extends StatelessWidget {
+  final DiscoveredDevice device;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _DiscoveredDeviceTile({
+    required this.device,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isActive ? const Color(0xFF00E676) : Colors.white24;
+    return Material(
+      color: const Color(0xFF2E7D32).withValues(alpha: isActive ? 0.22 : 0.1),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: accentColor),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isActive ? Icons.check_circle_rounded : Icons.dns_rounded,
+                color: isActive ? const Color(0xFF00E676) : Colors.white54,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      device.friendlyName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${device.ip}:${device.port} (${device.source})',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!isActive)
+                const Icon(Icons.chevron_right_rounded, color: Colors.white38),
+            ],
+          ),
         ),
       ),
     );

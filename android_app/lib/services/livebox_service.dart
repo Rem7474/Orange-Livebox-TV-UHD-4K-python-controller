@@ -14,15 +14,20 @@ import 'storage_service.dart';
 class LiveboxService extends ChangeNotifier {
   final StorageService storage;
   final http.Client _client;
+  final NetworkPermissionService _permissionService;
 
   Map<String, String> _keys = {};
   Map<String, String> _epgIds = {};
   List<Channel> _allChannels = [];
   bool _isDataLoaded = false;
 
-  LiveboxService({StorageService? storage, http.Client? client})
-      : storage = storage ?? StorageService(),
-        _client = client ?? http.Client();
+  LiveboxService({
+    StorageService? storage,
+    http.Client? client,
+    NetworkPermissionService? permissionService,
+  }) : storage = storage ?? StorageService(),
+       _client = client ?? http.Client(),
+       _permissionService = permissionService ?? NetworkPermissionService();
 
   String? _lastError;
   DecoderStatus? _lastStatus;
@@ -53,7 +58,11 @@ class LiveboxService extends ChangeNotifier {
       final keysMap = jsonDecode(keysStr) as Map<String, dynamic>;
       _keys = keysMap.map((k, v) => MapEntry(k, v.toString()));
     } catch (e) {
-      developer.log('Échec du chargement de assets/keys.json', name: 'LiveboxService', error: e);
+      developer.log(
+        'Échec du chargement de assets/keys.json',
+        name: 'LiveboxService',
+        error: e,
+      );
     }
 
     try {
@@ -112,7 +121,11 @@ class LiveboxService extends ChangeNotifier {
       _allChannels = list;
       _isDataLoaded = true;
     } catch (e) {
-      developer.log('Échec du chargement de assets/epg_ids.json', name: 'LiveboxService', error: e);
+      developer.log(
+        'Échec du chargement de assets/epg_ids.json',
+        name: 'LiveboxService',
+        error: e,
+      );
     }
   }
 
@@ -128,24 +141,30 @@ class LiveboxService extends ChangeNotifier {
   }
 
   Future<bool> sendKeyRaw(String keyNameOrCode, {int mode = 0}) async {
-    if (!await NetworkPermissionService.request()) {
+    if (!await _permissionService.request()) {
       _lastError = "Autorisation d'accès au réseau local refusée.";
       return false;
     }
     try {
       final baseUrl = await _getBaseUrl();
       final keyCode = _keys[keyNameOrCode] ?? keyNameOrCode;
-      final uri = Uri.parse(baseUrl).replace(queryParameters: {
-        'operation': '1',
-        'key': keyCode,
-        'mode': mode.toString(),
-      });
+      final uri = Uri.parse(baseUrl).replace(
+        queryParameters: {
+          'operation': '1',
+          'key': keyCode,
+          'mode': mode.toString(),
+        },
+      );
 
-      final response = await _client.get(uri).timeout(const Duration(seconds: 3));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 3));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final res = data['result'];
-        final ok = res != null && (res['responseCode'] == '0' || res['message'] == 'ok');
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final res = data['result'] as Map<String, dynamic>?;
+        final ok =
+            res != null &&
+            (res['responseCode'] == '0' || res['message'] == 'ok');
         if (!ok) _lastError = 'Le décodeur a refusé la commande.';
         return ok;
       }
@@ -158,24 +177,26 @@ class LiveboxService extends ChangeNotifier {
   }
 
   Future<bool> changeChannel(String epgId) async {
-    if (!await NetworkPermissionService.request()) {
+    if (!await _permissionService.request()) {
       _lastError = "Autorisation d'accès au réseau local refusée.";
       return false;
     }
     try {
       final baseUrl = await _getBaseUrl();
       final targetEpg = _epgIds[epgId] ?? epgId;
-      final uri = Uri.parse(baseUrl).replace(queryParameters: {
-        'operation': '9',
-        'epg_id': targetEpg,
-        'uui': '1',
-      });
+      final uri = Uri.parse(baseUrl).replace(
+        queryParameters: {'operation': '9', 'epg_id': targetEpg, 'uui': '1'},
+      );
 
-      final response = await _client.get(uri).timeout(const Duration(seconds: 3));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 3));
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final res = data['result'];
-        final ok = res != null && (res['responseCode'] == '0' || res['message'] == 'ok');
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final res = data['result'] as Map<String, dynamic>?;
+        final ok =
+            res != null &&
+            (res['responseCode'] == '0' || res['message'] == 'ok');
         if (!ok) _lastError = 'Le décodeur a refusé le changement de chaîne.';
         return ok;
       }
@@ -195,16 +216,18 @@ class LiveboxService extends ChangeNotifier {
   }
 
   Future<DecoderStatus> _fetchStatus() async {
-    if (!await NetworkPermissionService.request()) {
+    if (!await _permissionService.request()) {
       return DecoderStatus.permissionDenied();
     }
     try {
       final baseUrl = await _getBaseUrl();
-      final uri = Uri.parse(baseUrl).replace(queryParameters: {
-        'operation': '10',
-      });
+      final uri = Uri.parse(
+        baseUrl,
+      ).replace(queryParameters: {'operation': '10'});
 
-      final response = await _client.get(uri).timeout(const Duration(seconds: 3));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 3));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         return DecoderStatus.fromJson(data);

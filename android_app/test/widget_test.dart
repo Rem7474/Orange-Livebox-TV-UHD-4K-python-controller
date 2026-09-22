@@ -1,11 +1,14 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:android_app/main.dart';
 import 'package:android_app/services/livebox_service.dart';
 import 'package:android_app/services/storage_service.dart';
 
 void main() {
-  testWidgets('Vérification du chargement de LiveboxApp et de la navigation', (WidgetTester tester) async {
+  testWidgets('Vérification du chargement de LiveboxApp et de la navigation', (
+    WidgetTester tester,
+  ) async {
     SharedPreferences.setMockInitialValues({
       'livebox_ip': '192.168.1.15',
       'livebox_port': '8080',
@@ -14,7 +17,9 @@ void main() {
     final storage = StorageService();
     final service = LiveboxService(storage: storage);
 
-    await tester.pumpWidget(LiveboxApp(service: service));
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(value: service, child: const LiveboxApp()),
+    );
     await tester.pumpAndSettle();
 
     // Vérifier les 3 onglets de navigation

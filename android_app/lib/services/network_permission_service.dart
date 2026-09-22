@@ -7,7 +7,7 @@ class NetworkPermissionService {
     Permission.accessLocalNetwork,
   ];
 
-  static Future<bool> isGranted() async {
+  Future<bool> isGranted() async {
     if (!Platform.isAndroid) return true;
     for (final permission in _permissions) {
       final status = await permission.status;
@@ -16,13 +16,13 @@ class NetworkPermissionService {
     return true;
   }
 
-  static Future<bool> request() async {
+  Future<bool> request() async {
     if (!Platform.isAndroid) return true;
     final statuses = await _permissions.request();
     return statuses.values.every((s) => s.isGranted || s.isLimited);
   }
 
-  static Future<bool> isPermanentlyDenied() async {
+  Future<bool> isPermanentlyDenied() async {
     if (!Platform.isAndroid) return false;
     for (final permission in _permissions) {
       if (await permission.isPermanentlyDenied) return true;
