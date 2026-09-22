@@ -62,7 +62,7 @@ Vous pouvez également utiliser l'application sans installer Python :
 
 ## 📱 Application Mobile Android
 
-Une application mobile Android moderne, fluide et autonome est disponible dans le dossier [`android_app/`](android_app/) :
+Une application mobile Android moderne, fluide et autonome, nommée **Télécommande TV Orange**, est disponible dans le dossier [`android_app/`](android_app/). Voir le [README dédié](android_app/README.md) pour le détail, y compris l'avertissement de non-affiliation à Orange.
 
 ### ✨ Fonctionnalités Mobile :
 * **Télécommande tactile intégrale** :
@@ -83,7 +83,7 @@ Une application mobile Android moderne, fluide et autonome est disponible dans l
 
 ### 📥 Comment installer l'application sur votre smartphone Android :
 1. Rendez-vous sur la page des [Releases GitHub](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases).
-2. Téléchargez le fichier **`LiveboxTVController.apk`**.
+2. Téléchargez le fichier **`TelecommandeTVOrange.apk`**.
 3. Sur votre téléphone, ouvrez le fichier téléchargé et autorisez l'installation depuis cette source si demandé.
 4. Assurez-vous d'être connecté au même réseau Wi-Fi que votre décodeur Livebox TV : l'application détectera automatiquement votre décodeur !
 
@@ -208,7 +208,7 @@ Le projet intègre une chaîne d'intégration et de déploiement continus (CI/CD
 * **Publication automatique des Releases** :
   La création d'un tag git (ex: `v1.1.0`) déclenche automatiquement :
   - La compilation sous Windows de l'exécutable autonome `LiveboxTVController.exe`.
-  - La compilation sous Ubuntu de l'application Android `LiveboxTVController.apk`.
+  - La compilation sous Ubuntu de l'application Android `TelecommandeTVOrange.apk`.
   - La génération des empreintes d'intégrité SHA-256 pour chaque fichier.
   - La publication directe sur la page des Releases GitHub.
   ```bash
