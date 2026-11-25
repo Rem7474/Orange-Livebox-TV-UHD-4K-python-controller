@@ -16,7 +16,7 @@ class MockNetworkPermissionService extends Mock
     implements NetworkPermissionService {}
 
 void main() {
-  testWidgets('Layout desktop (>= 840px) affiche NavigationRail et 2 colonnes', (
+  testWidgets('Layout desktop affiche NavigationRail et 2 colonnes', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
