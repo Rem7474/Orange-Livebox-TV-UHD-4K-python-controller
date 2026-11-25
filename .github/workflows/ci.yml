@@ -160,7 +160,7 @@ jobs:
           cd android_app
           flutter create --platforms=windows --project-name android_app .
           Copy-Item ..\app_icon.ico windows\runner\resources\app_icon.ico -Force
-          (Get-Content windows\runner\main.cpp -Raw) -replace 'android_app', 'Télécommande TV Orange' | Set-Content windows\runner\main.cpp -Encoding UTF8
+          (Get-Content windows\runner\main.cpp -Raw) -replace 'android_app', 'T\u00E9l\u00E9commande TV Orange' | Set-Content windows\runner\main.cpp -Encoding ASCII
           flutter pub get
           flutter build windows --release
           Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath ..\TelecommandeTVOrange-Windows.zip -Force
