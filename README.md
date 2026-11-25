@@ -9,8 +9,9 @@ Suite complète pour piloter et automatiser votre décodeur **Orange Livebox TV 
 
 | Solution | Plateforme | Technologie | Description |
 |---|---|---|---|
-| 🖥️ **Desktop GUI** | Windows, Linux, macOS | Python / Tkinter | Interface graphique avec télécommande virtuelle, zapping TNT & module d'exploration |
+| 🖥️ **Flutter Desktop** | Windows | Flutter (Dart) | Interface moderne 2 colonnes (télécommande + guide des chaînes) avec raccourcis clavier |
 | 📱 **Mobile App** | Android (Smartphones & Tablettes) | Flutter (Dart) | Application mobile tactile fluide (D-Pad, volume/chaînes, près de 400 chaînes, scan Wi-Fi) |
+| 🖥️ **Desktop GUI (Python)** | Windows, Linux, macOS | Python / Tkinter | Interface graphique légère avec télécommande virtuelle, zapping TNT & module d'exploration |
 | ⌨️ **CLI Script** | Tous OS | Python standard | Outil en ligne de commande idéal pour scripts d'automatisation, raccourcis et cron |
 
 ---
@@ -60,9 +61,9 @@ Vous pouvez également utiliser l'application sans installer Python :
 
 ---
 
-## 📱 Application Mobile Android
+## 📱 Application Multiplateforme Flutter (Android & Windows Desktop)
 
-Une application mobile Android moderne, fluide et autonome, nommée **Télécommande TV Orange**, est disponible dans le dossier [`android_app/`](android_app/). Voir le [README dédié](android_app/README.md) pour le détail, y compris l'avertissement de non-affiliation à Orange.
+Une application moderne et autonome, nommée **Télécommande TV Orange**, est disponible dans le dossier [`android_app/`](android_app/). Elle fonctionne à la fois sur **Android** et sur **Windows Desktop** (interface responsive 2 colonnes avec raccourcis clavier : flèches, Entrée = OK, Échap/Retour = Retour, Espace = Lecture/Pause, `+/-` = Volume, `M` = Muet, `PageUp`/`PageDown` = Chaînes, `P` = Power, `H` = Menu, pavé numérique `0–9`). Voir le [README dédié](android_app/README.md) pour le détail, y compris l'avertissement de non-affiliation à Orange.
 
 ### ✨ Fonctionnalités Mobile :
 * **Télécommande tactile intégrale** :
@@ -81,11 +82,11 @@ Une application mobile Android moderne, fluide et autonome, nommée **Télécomm
   * Détection en 1 clic de l'adresse IP de votre décodeur sans configuration manuelle (résolution DNS `livebox-tv.home` et scan de sous-réseau `192.168.1.x:8080`).
   * Affichage en direct du statut : nom du décodeur, contexte d'affichage (`LIVE`, `HOMEPAGE`), état d'alimentation.
 
-### 📥 Comment installer l'application sur votre smartphone Android :
+### 📥 Comment installer l'application :
 1. Rendez-vous sur la page des [Releases GitHub](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases).
-2. Téléchargez le fichier **`TelecommandeTVOrange.apk`**.
-3. Sur votre téléphone, ouvrez le fichier téléchargé et autorisez l'installation depuis cette source si demandé.
-4. Assurez-vous d'être connecté au même réseau Wi-Fi que votre décodeur Livebox TV : l'application détectera automatiquement votre décodeur !
+2. Téléchargez **`TelecommandeTVOrange.apk`** (Android) ou **`TelecommandeTVOrange-Windows.zip`** (Windows Desktop, décompresser puis lancer `android_app.exe`).
+3. Sur Android, ouvrez le fichier `.apk` téléchargé et autorisez l'installation depuis cette source si demandé.
+4. Assurez-vous d'être connecté au même réseau Wi-Fi/Ethernet que votre décodeur Livebox TV : l'application détectera automatiquement votre décodeur !
 
 ### 🛠️ Compilation locale de l'APK :
 ```bash

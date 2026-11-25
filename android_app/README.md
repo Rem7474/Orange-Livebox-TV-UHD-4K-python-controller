@@ -1,6 +1,8 @@
-﻿# Télécommande TV Orange (Android)
+﻿# Télécommande TV Orange (Android & Windows Desktop)
 
-Application mobile Android moderne et autonome pour contrôler le décodeur **Orange Livebox TV UHD 4K** directement depuis votre smartphone connecté au Wi-Fi local.
+Application moderne et autonome (Android & Windows Desktop) pour contrôler le décodeur **Orange Livebox TV UHD 4K** directement depuis votre smartphone ou PC connecté au réseau local.
+
+> **Interface Desktop (≥ 840 px)** : affichage automatique en **2 colonnes** (télécommande à gauche + guide des chaînes à droite, barre latérale de navigation) avec **raccourcis clavier** (`↑↓←→`, `Entrée` = OK, `Échap`/`Retour` = Retour, `Espace` = Lecture/Pause, `+`/`-` = Volume, `M` = Muet, `PageUp`/`PageDown` = Chaînes, `P` = Power, `H` = Menu, `0–9`).
 
 > **Avertissement de non-affiliation :** cette application est un outil indépendant développé par RemCorp. Elle n'est ni affiliée, ni soutenue, ni éditée par la société Orange. « Orange » et « Livebox » sont des marques déposées de leurs propriétaires respectifs, mentionnées ici uniquement pour indiquer la compatibilité matérielle.
 
