@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Interface Graphique pour le contrôleur de Décodeur TV UHD 4K Orange.
 Permet de piloter la Livebox TV sans utiliser la ligne de commande :

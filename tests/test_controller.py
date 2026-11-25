@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Tests unitaires pour le contrôleur TV Orange Livebox UHD 4K.
 """

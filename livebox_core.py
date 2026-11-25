@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Module cœur (sans dépendance Tkinter) pour le contrôleur de Décodeur TV UHD 4K Orange.
 Fournit :

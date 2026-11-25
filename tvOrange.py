@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Ce module permet de contrôler le décodeur TV orange via la ligne de commande Unix/Windows d'un système.
 Il nécessite le module requests (et livebox_core).

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Met à jour epg_ids.json, android_app/assets/epg_ids.json et epg_ids.md
 à partir du catalogue Orange TV (chaines-tv.orange.fr via iptv-org/epg),
