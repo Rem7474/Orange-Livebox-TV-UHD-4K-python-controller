@@ -18,7 +18,7 @@ Application mobile Android moderne et autonome pour contrôler le décodeur **Or
 - **Retour haptique** : Vibrations subtiles à chaque appui pour une sensation de télécommande physique.
 
 ### 2. 📺 Guide des Chaînes & Zapping Direct (Opération 9)
-- Intégration de plus de **300 chaînes Orange TV** issues de `epg_ids.json`.
+- Intégration de près de **400 chaînes Orange TV** (397 chaînes uniques) issues de `epg_ids.json` (numérotation TNT 2025/2026).
 - **Recherche instantanée** par nom (ex: *TF1, Arte, Canal+*) ou par numéro de chaîne (ex: *1, 2, 7*).
 - **Gestion des favoris** : Étoilez vos chaînes favorites pour les retrouver instantanément en haut de liste.
 - **Zapping en 1 clic** : Changement immédiat de chaîne sur le téléviseur.
@@ -26,7 +26,7 @@ Application mobile Android moderne et autonome pour contrôler le décodeur **Or
 ### 3. 🔍 Scan Réseau & Détection Automatique (Opération 10)
 - **Recherche automatique** du ou des décodeurs sur le Wi-Fi (résolution DNS des noms d'hôtes `livebox-tv.home` et balayage HTTP du sous-réseau `192.168.1.x` sur le port 8080). Si plusieurs décodeurs sont détectés (foyer multi-TV), un sélecteur permet de choisir celui à configurer.
 - **Statut en temps réel** : Nom du décodeur, état de marche/veille, contexte d'affichage (`LIVE`, `HOMEPAGE`).
-- **Configuration manuelle** : Saisie personnalisée de l'adresse IP et du port avec bouton de test immédiat.
+- **Configuration manuelle** : Saisie personnalisée de l'adresse IP (port `8080` fixe) avec bouton de test immédiat.
 - **Persistance locale** : Paramètres sauvegardés automatiquement dans l'appareil.
 
 ---
@@ -35,7 +35,9 @@ Application mobile Android moderne et autonome pour contrôler le décodeur **Or
 
 ### Prérequis
 - Smartphone ou émulateur Android (Android 5.0 Lollipop - API 21 minimum).
-- Flutter SDK (>= 3.12.0).
+- Dart SDK (>= 3.12.0) / Flutter SDK (stable).
+- Java 17+.
+- Android SDK 37 (`compileSdk 37`).
 
 ### Lancer en mode développement
 ```bash
@@ -77,7 +79,6 @@ L'application ne collecte, ne stocke et ne transmet **aucune donnée personnelle
 | `INTERNET` | Envoyer les commandes HTTP au décodeur sur le réseau local (télécommande, zapping, statut). |
 | `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` | Vérifier la connectivité Wi-Fi avant de tenter une requête ou un scan. |
 | `ACCESS_LOCAL_NETWORK` | Autoriser les requêtes HTTP vers des adresses IP privées (API Android 16+ dédiée à cet usage, remplace la géolocalisation historiquement requise pour le scan réseau). |
-| `NEARBY_WIFI_DEVICES` (`neverForLocation`) | Découverte automatique du décodeur par scan du sous-réseau local, sans accès à la géolocalisation. |
 | `CHANGE_WIFI_MULTICAST_STATE`, `CHANGE_NETWORK_STATE` | Fiabiliser la résolution réseau locale pendant le scan de découverte. |
 
 Aucune permission de géolocalisation, caméra, contacts, stockage ou téléphonie n'est demandée.

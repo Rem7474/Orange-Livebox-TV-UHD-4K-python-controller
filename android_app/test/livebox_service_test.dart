@@ -282,5 +282,29 @@ void main() {
         expect(status.permissionDenied, true);
       },
     );
+
+    test(
+      'getStatus(interactive: false) vérifie isGranted() sans redemander',
+      () async {
+        final mockPermissionService = MockNetworkPermissionService();
+        when(mockPermissionService.isGranted).thenAnswer((_) async => false);
+
+        final mockClient = MockClient((request) async {
+          fail('Aucune requête HTTP ne doit être envoyée sans permission.');
+        });
+
+        final service = LiveboxService(
+          storage: storage,
+          client: mockClient,
+          permissionService: mockPermissionService,
+        );
+
+        final status = await service.getStatus(interactive: false);
+        expect(status.isOnline, false);
+        expect(status.permissionDenied, true);
+        verify(mockPermissionService.isGranted).called(1);
+        verifyNever(mockPermissionService.request);
+      },
+    );
   });
 }

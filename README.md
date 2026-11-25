@@ -10,7 +10,7 @@ Suite complète pour piloter et automatiser votre décodeur **Orange Livebox TV 
 | Solution | Plateforme | Technologie | Description |
 |---|---|---|---|
 | 🖥️ **Desktop GUI** | Windows, Linux, macOS | Python / Tkinter | Interface graphique avec télécommande virtuelle, zapping TNT & module d'exploration |
-| 📱 **Mobile App** | Android (Smartphones & Tablettes) | Flutter (Dart) | Application mobile tactile fluide (D-Pad, volume/chaînes, guide 300+ chaînes, scan Wi-Fi) |
+| 📱 **Mobile App** | Android (Smartphones & Tablettes) | Flutter (Dart) | Application mobile tactile fluide (D-Pad, volume/chaînes, près de 400 chaînes, scan Wi-Fi) |
 | ⌨️ **CLI Script** | Tous OS | Python standard | Outil en ligne de commande idéal pour scripts d'automatisation, raccourcis et cron |
 
 ---
@@ -28,8 +28,8 @@ python tvOrange.py
 
 ### 🚀 Exécutable Windows autonome (.exe)
 Vous pouvez également utiliser l'application sans installer Python :
-* Lancez directement **`dist\LiveboxTVController.exe`** (fichier unique intégrant toutes les dépendances et chaînes).
-* Pour recompiler le `.exe` en 1 clic : double-cliquez sur **`build_exe.bat`**.
+* **Téléchargement direct** : téléchargez **`LiveboxTVController.exe`** depuis la page des [Releases GitHub](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller/releases) (fichier unique intégrant toutes les dépendances et chaînes).
+* **Compilation locale** : double-cliquez sur **`build_exe.bat`** pour générer **`dist\LiveboxTVController.exe`** (le dossier `dist/` est ignoré par Git et n'est pas inclus dans le dépôt).
 
 <img width="2880" height="1641" alt="image" src="https://github.com/user-attachments/assets/08812778-c3a2-4bde-9946-3f0158a0818b" />
 
@@ -43,14 +43,14 @@ Vous pouvez également utiliser l'application sans installer Python :
   * Pavé numérique complet (0 à 9)
   * Choix du mode d'appui : court (0), enfoncé (1), relâché (2)
 * **Zapping Rapide TNT & Catalogue de Chaînes** :
-  * Boutons d'accès direct en 1 clic pour les principales chaînes (TF1, France 2, France 3, Canal+, France 5, M6, Arte, C8, W9, TMC, BFM TV, CNews, L'Équipe...)
-  * Recherche et filtrage en temps réel parmi toutes les chaînes disponibles (`epg_ids.json`)
+  * Boutons d'accès direct en 1 clic pour les principales chaînes TNT (TF1, France 2, France 3, France 4, France 5, M6, Arte, W9, TMC, BFM TV, CNews, Franceinfo, T18, NOVO19)
+  * Recherche et filtrage en temps réel parmi toutes les chaînes disponibles (`epg_ids.json`, actualisable via `python scripts/update_epg_ids.py`)
   * Saisie directe d'un numéro ou code EPG
   * Double-clic dans la liste pour zapper instantanément
 * **Détection Automatique du Décodeur (Hostname 'tv' & API)** :
   * Bouton **"🔍 Détecter IP"** : scanne le réseau local, identifie automatiquement le décodeur (recherche de nom d'hôte contenant "tv" ou réponse API) et configure l'adresse en 1 clic !
 * **Configuration Facile & Persistance** :
-  * Saisie manuelle ou détection automatique de l'IP/port
+  * Saisie manuelle ou détection automatique de l'adresse IP (port `8080` fixe)
   * Sauvegarde automatique dans `config.json` (réutilisé automatiquement par le script CLI)
 * **Module d'Exploration & Diagnostic (inspiré d'exploreTvOrange.py)** :
   * Bouton **"🔬 Exploration"** : ouvre une interface dédiée pour tester à l'aveugle des codes touches inconnus (appui court, long, maintien, scan automatique par plage), tester des modes/opérations brutes et des codes EPG personnalisés avec affichage JSON en direct.
@@ -74,7 +74,7 @@ Une application mobile Android moderne, fluide et autonome, nommée **Télécomm
   * Clavier numérique escamotable (0 à 9) déployable en 1 tap.
   * **Retour haptique physique** : vibration subtile à chaque appui de touche.
 * **Guide des Chaînes & Zapping instantané** :
-  * Intégration de plus de 300 chaînes Orange TV avec numérotation officielle.
+  * Intégration de près de 400 chaînes Orange TV (397 chaînes uniques) avec numérotation TNT 2025/2026 officielle.
   * Recherche en temps réel par nom (ex: *TF1, Canal+, Arte*) ou par numéro de chaîne.
   * Mise en favoris (★) d'un clic pour épingler vos chaînes préférées en haut de la liste.
 * **Détection Wi-Fi automatique** :
@@ -159,14 +159,14 @@ Développé et testé sur un système connecté au même réseau local que le d�
    Correspond au 'code télécommande' du signal que l'on souhaite envoyer au décodeur TV.
    
    Valeurs connues possibles :
-   [Voir la liste des keys : le code donné à l'option peut être la valeur de la colonne CODE_INT ou CODE_STR.](https://github.com/DalFanajin/Orange-Livebox-TV-UHD-4K-python-controller/blob/master/keys.md)
+   [Voir la liste des keys : le code donné à l'option peut être la valeur de la colonne CODE_INT ou CODE_STR.](keys.md)
 	
 * -e ou --epg_id :
    Obligatoire si -o ou --operation est égal à '9'.
    Correspond au code EPG de la chaîne que le décodeur TV doit afficher.
    
    Valeurs connues possibles :
-   [Voir la liste des epg_ids : le code donné à l'option peut être la valeur de n'importe quelle colonne.](https://github.com/DalFanajin/Orange-Livebox-TV-UHD-4K-python-controller/blob/master/epg_ids.md)
+   [Voir la liste des epg_ids : le code donné à l'option peut être la valeur de n'importe quelle colonne.](epg_ids.md)
    
 ## Exemples
 * Obtenir l'état du décodeur et l'enregistre dans result.json
@@ -193,6 +193,7 @@ Le projet intègre une chaîne d'intégration et de déploiement continus (CI/CD
 * **Tests unitaires Python (Matrix Linux & Windows, Python 3.10 à 3.13)** :
   ```bash
   pip install -r requirements-dev.txt
+  ruff check --extend-exclude scripts .
   pytest -v tests/
   ```
 * **Tests unitaires & Analyse mobile Flutter** :
@@ -204,7 +205,9 @@ Le projet intègre une chaîne d'intégration et de déploiement continus (CI/CD
 * **Qualité de code SonarCloud** :
   Analyse statique automatique validant la sécurité et la fiabilité du code (Quality Gate actif).
 * **Surveillance automatique des dépendances (Dependabot)** :
-  Scan hebdomadaire des bibliothèques Python (`requirements.txt`) et des actions GitHub pour appliquer automatiquement les correctifs de sécurité.
+  Scan hebdomadaire des bibliothèques Python (`pip`), des dépendances Flutter (`pub`) et Android (`gradle`), ainsi que des actions GitHub pour appliquer automatiquement les correctifs de sécurité.
+* **Actualisation automatique des chaînes EPG (`update-epg.yml`)** :
+  Workflow hebdomadaire (chaque lundi à 06h30 UTC, ou déclenchable manuellement) exécutant `scripts/update_epg_ids.py` et ouvrant automatiquement une Pull Request en cas de changement dans le catalogue Orange TV.
 * **Publication automatique des Releases** :
   La création d'un tag git (ex: `v1.1.0`) déclenche automatiquement :
   - La compilation sous Windows de l'exécutable autonome `LiveboxTVController.exe`.
@@ -225,7 +228,7 @@ Le projet intègre une chaîne d'intégration et de déploiement continus (CI/CD
 Je suis loin d'être un expert des outils utilisés par ce module : il peut présenter des erreurs, être incomplet, etc.
 N'hésitez pas à le modifier, l'adapter, le partager, et l'utiliser quel que soit le contexte.
 
-[Je vous serais reconnaissant de me transmettre les éventuelles améliorations/corrections à y apporter sur le repository github.](https://github.com/DalFanajin/Orange-Livebox-TV-UHD-4K-python-controller)
+[Je vous serais reconnaissant de me transmettre les éventuelles améliorations/corrections à y apporter sur le repository github.](https://github.com/Rem7474/Orange-Livebox-TV-UHD-4K-python-controller)
 
 Etant donné que le décodeur est exclusivement français, je n'ai pas prévu de traduction anglaise les documentations associées : si elle est nécessaire, n'hésitez pas à me solliciter.
 This decoder is a french product, so I didn't translate documentation files in english : do not hesitate to ask if you need a translation anyway.

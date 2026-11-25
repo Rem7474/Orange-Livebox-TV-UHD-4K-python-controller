@@ -1,4 +1,4 @@
-name: Release - Build & Publish Windows Executable
+name: Release - Build & Publish Desktop & Android
 
 on:
   push:
@@ -64,14 +64,26 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release-android:
-    name: Build & Release Android APK
+    name: Build & Release Android APK & AAB
     needs: release
     runs-on: ubuntu-latest
     env:
-      HAS_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 != '' }}
+      TAG_NAME: ${{ github.event.inputs.tag_name || github.ref_name }}
     steps:
       - name: Checkout du code
         uses: actions/checkout@v4
+
+      - name: Vérification du keystore de signature Release
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ vars.ANDROID_RELEASE_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo "::error::Les secrets/variables de signature Android Release (ANDROID_RELEASE_KEYSTORE_BASE64, ANDROID_RELEASE_KEYSTORE_PASSWORD, ANDROID_RELEASE_KEY_ALIAS, ANDROID_RELEASE_KEY_PASSWORD) sont requis pour publier une release."
+            exit 1
+          fi
 
       - name: Configuration de Java
         uses: actions/setup-java@v4
@@ -86,22 +98,23 @@ jobs:
           cache: true
 
       - name: Décodage du keystore de signature Release
-        if: ${{ env.HAS_RELEASE_KEYSTORE == 'true' }}
         run: |
           echo "${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/livebox-release.jks"
 
       - name: Compilation de l'APK et de l'AAB Android Release
         env:
-          ANDROID_RELEASE_KEYSTORE_PATH: ${{ env.HAS_RELEASE_KEYSTORE == 'true' && format('{0}/livebox-release.jks', runner.temp) || '' }}
+          ANDROID_RELEASE_KEYSTORE_PATH: ${{ format('{0}/livebox-release.jks', runner.temp) }}
           ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
           ANDROID_RELEASE_KEY_ALIAS: ${{ vars.ANDROID_RELEASE_KEY_ALIAS }}
           ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
+          BUILD_NAME="${TAG_NAME#v}"
+          BUILD_NUMBER="${{ github.run_number }}"
           cd android_app
           flutter pub get
           flutter test
-          flutter build apk --release
-          flutter build appbundle --release
+          flutter build apk --release --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
+          flutter build appbundle --release --build-name="$BUILD_NAME" --build-number="$BUILD_NUMBER"
           cp build/app/outputs/flutter-apk/app-release.apk ../TelecommandeTVOrange.apk
           cp build/app/outputs/bundle/release/app-release.aab ../TelecommandeTVOrange.aab
           cd ..

@@ -1,241 +1,277 @@
+#!/usr/bin/env python3
 """
-Ce module permet de contrôler le décodeur TV orange via la ligne de commande Unix d'un système.
-Il nécessite les modules suivants : requests, sys, getopt, json
+Ce module permet de contrôler le décodeur TV orange via la ligne de commande Unix/Windows d'un système.
+Il nécessite le module requests (et livebox_core).
 
 Développé et testé pour le décodeur TV UHD 4K Orange :
 
 	Modèle : Livebox Fibre
 	Version de firmware : 1.12.16
-	Version de firmware Orange : g0-f-fr)
-	
-Développé et tester sur un système connecté au même réseau local que le décodeur TV :
+	Version de firmware Orange : g0-f-fr
 
-	Dans cet exemple, l'adresse IP de mon décodeur est fixe et son addresse locale est 192.168.1.12
-	La variable globale 'URL' doit être modifiée pour accueillir l'addresse locale de votre décodeur.
-	
 Options :
 
 	-h ou --help :
-		Optionnel.
-		Sans argument.
-		Permet d'afficher cette docstring.
-		
+		Optionnel. Affiche l'aide de la ligne de commande.
+
 	-g ou --gui :
-		Optionnel.
-		Sans argument.
-		Lance l'interface graphique (également lancée par défaut sans aucun argument).
+		Optionnel. Lance l'interface graphique (également lancée par défaut sans aucun argument).
 
 	-a ou --auto :
-		Optionnel.
-		Sans argument.
-		Recherche automatiquement l'adresse IP du décodeur TV sur le réseau local et met à jour config.json.
+		Optionnel. Recherche automatiquement l'adresse IP du décodeur TV sur le réseau local et met à jour config.json.
 
 	-v ou --verbose :
-		Optionnel.
-		Sans argument.
-		Permet d'afficher les informations écrites dans la console par la méthode 'printVerbose', utilisée pour afficher les informations de déroulement du programme.
-		
+		Optionnel. Affiche les informations détaillées de déroulement du programme.
+
 	-o ou --operation :
-		Obligatoire.
-		Spécifie l'instruction à envoyer au décodeur TV.
-		
-		Valeurs possibles :
-			10 	: affiche les informations système et l'état actuel du décodeur TV.
-			9	: permet de se rendre sur une chaîne précise en indiquant un code EPG (Electronic Program Guide) en indiquant l'epg_id (-e ou --epg_id).
-			1  	: permet de simuler l'appui d'une touche sur la télécommande en indiquant le mode (-m ou --mode) et la key (-k ou --key).
-			
+		Obligatoire (sauf -g/-a). Spécifie l'instruction à envoyer au décodeur TV :
+			10 : affiche les informations système et l'état actuel du décodeur TV (sauvegarde result.json).
+			9  : permet de se rendre sur une chaîne précise via -e / --epg_id.
+			1  : simule l'appui d'une touche via -m / --mode et -k / --key.
+
 	-m ou --mode :
-		Obligatoire si -o ou --operation est égal à '1'.
-		Correspond au mode d'appui du bouton correspondant à la touche de la télécommande.
-		
-		Valeurs possibles :
-			0 : simule un appui court sur la touche de la télécommande (keyDown + keyUp)
-			1 : simule un appui sur la touche de la télécommande sans relache du bouton (keyDown)
-			2 : simule une relache du bouton de la touche de la télécommande (keyUp)
-		
+		Obligatoire si -o / --operation vaut '1' (0 = court, 1 = maintien, 2 = relâche).
+
 	-k ou --key :
-		Obligatoire si -o ou --operation est égal à '1'.
-		Correspond au 'code télécommande' du signal que l'on souhaite envoyer au décodeur TV.
-		
-		Valeurs connues possibles :
-			Colonnes CODE_INT ou CODE_STR de https://github.com/DalFanajin/Orange-Livebox-TV-UHD-4K-python-controller/blob/master/keys.md
-	
+		Obligatoire si -o / --operation vaut '1' (voir keys.json / keys.md).
+
 	-e ou --epg_id :
-		Obligatoire si -o ou --operation est égal à '9'.
-		Correspond au code EPG de la chaîne que le décodeur TV doit afficher.
-		
-		Valeurs connues possibles :
-			Toutes colonnes de https://github.com/DalFanajin/Orange-Livebox-TV-UHD-4K-python-controller/blob/master/epg_ids.md
-		
-
-Un grand merci à tous les contributeurs du topic à cette addresse :
-https://communaute.orange.fr/t5/TV-par-ADSL-et-Fibre/API-pour-commander-le-decodeur-TV-depusi-une-tablette/td-p/43443
-
-Je suis loin d'être un expert des technologies utilisées par ce module : il peut présenter des erreurs, être incomplet, etc.
-N'hésitez pas à le modifier, l'adapter, le partager, et l'utiliser quel que soit le contexte.
-
-Je vous serais reconnaissant de me transmettre les éventuelles améliorations/corrections à y apporter sur le repository github : https://github.com/DalFanajin/Orange-Livebox-TV-UHD-4K-python-controller
-
-Etant donné que le décodeur est exclusivement français, je n'ai pas prévu de traduction anglaise pour cette docstring : si elle est nécessaire, n'hésitez pas à me solliciter.
-This decoder is a french product, so I didn't translate this docstring in english : do not hesitate to ask if you need a translation anyway.
+		Obligatoire si -o / --operation vaut '9' (voir epg_ids.json / epg_ids.md).
 """
 
-# importing the requests library 
-import requests, sys, getopt, json, os
+import argparse
+import sys
 
-# initialisation de la 
+from livebox_core import (
+    CONFIG_FILE,
+    EPG_IDS_FILE,
+    KEYS_FILE,
+    OrangeTVClient,
+    discover_decoder_ip,
+    load_config,
+    save_config,
+)
+
 VERBOSE = False
 
-# api-endpoint 
-URL = "http://192.168.1.15:8080/remoteControl/cmd"
-KEYS_FILE = "keys.json"
-EPG_IDS_FILE = "epg_ids.json"
-CONFIG_FILE = "config.json"
-
-# Chargement de la configuration si disponible
-if os.path.exists(CONFIG_FILE):
-	try:
-		with open(CONFIG_FILE, "r", encoding="utf-8") as _cfg_file:
-			_cfg = json.load(_cfg_file)
-			_ip = _cfg.get("ip", "192.168.1.15")
-			_port = _cfg.get("port", "8080")
-			URL = f"http://{_ip}:{_port}/remoteControl/cmd"
-	except Exception:
-		pass
+__all__ = [
+    "CONFIG_FILE",
+    "EPG_IDS_FILE",
+    "KEYS_FILE",
+    "VERBOSE",
+    "build_parser",
+    "getFullResult",
+    "main",
+    "parse_args",
+    "printError",
+    "printVerbose",
+]
 
 
-def main(argv):	
-	if len(argv) == 0 or (len(argv) == 1 and argv[0] in ('-g', '--gui')):
-		try:
-			import tvOrangeGui
-			tvOrangeGui.main()
-			sys.exit(0)
-		except Exception as e:
-			printError(f"Erreur lors du lancement de l'interface graphique : {e}")
-			sys.exit(1)
+def build_parser():
+    """Construit le parseur d'arguments argparse pour la CLI tvOrange."""
+    parser = argparse.ArgumentParser(
+        prog="tvOrange.py",
+        description="Contrôleur en ligne de commande pour le décodeur TV UHD 4K Orange.",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Affiche les informations détaillées dans la console.",
+    )
+    parser.add_argument(
+        "-a",
+        "--auto",
+        action="store_true",
+        help="Recherche automatiquement l'IP du décodeur TV et met à jour config.json.",
+    )
+    parser.add_argument(
+        "-g",
+        "--gui",
+        action="store_true",
+        help="Lance l'interface graphique Tkinter.",
+    )
+    parser.add_argument(
+        "-o",
+        "--operation",
+        type=str,
+        default="",
+        help="Opération à exécuter : '1' (touche), '9' (chaîne EPG), '10' (état).",
+    )
+    parser.add_argument(
+        "-m",
+        "--mode",
+        type=str,
+        default="",
+        help="Mode d'appui pour -o 1 : '0' (court), '1' (maintien), '2' (relâche).",
+    )
+    parser.add_argument(
+        "-k",
+        "--key",
+        type=str,
+        default="",
+        help="Code ou nom de touche pour -o 1 (voir keys.json).",
+    )
+    parser.add_argument(
+        "-e",
+        "--epg_id",
+        type=str,
+        default="",
+        help="Identifiant ou nom de chaîne EPG pour -o 9 (voir epg_ids.json).",
+    )
+    return parser
 
-	if len(argv) == 1 and argv[0] in ('-a', '--auto'):
-		print("Recherche automatique du décodeur TV sur le réseau...")
-		from tvOrangeGui import discover_decoder_ip
-		ip, port, info = discover_decoder_ip(lambda m: print(f"  {m}"))
-		if ip:
-			print(f"\nDécodeur TV trouvé avec succès !")
-			print(f"  Adresse IP : {ip}")
-			print(f"  Port       : {port}")
-			print(f"  Détail     : {info}")
-			with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-				json.dump({"ip": ip, "port": port}, f, indent=2)
-			print(f"Configuration sauvegardée dans '{CONFIG_FILE}'.")
-			sys.exit(0)
-		else:
-			printError("Aucun décodeur TV détecté sur le réseau local.")
-			sys.exit(1)
 
-	opts, args = checkArgs(argv)
-	
-	checkIfArgsAreEmpty(args)
-	
-	operation, key, mode, epg_id = getFlagsAndValues(opts)
-	
-	result = createAndSendRequest(operation, key, mode, epg_id)
-	
-	resultCode, resultMessage, resultData = getFullResult(result)
-	
-	with open('result.json', 'w') as outfile:
-		json.dump(result, outfile)
-		
-	sys.exit(int(resultCode))
-	
-def createAndSendRequest(operation,key,mode,epg_id):
-	# parametres d'url
-	if operation == "1":
-		PARAMS = {'operation':operation,'key':translateArg(key,KEYS_FILE),'mode':mode} 
-	elif operation == "9":
-		PARAMS = {'operation':operation, 'epg_id':translateArg(epg_id,EPG_IDS_FILE),'uui':1} 
-	elif operation == "10":
-		PARAMS = {'operation':operation} 
-	else :
-		printError("L'opération (-o ou --operation) doit être '1', '9' ou '10'.  Utilisez -h ou --help pour obtenir plus d'informations.")
-		sys.exit('Argument(s) invalide(s)')
-		
-	# sending get request and saving the response as response object 
-	return requests.get(url = URL, params = PARAMS).json()
+def parse_args(argv):
+    """Parse les arguments CLI via argparse et met à jour VERBOSE si demandé."""
+    global VERBOSE
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.verbose:
+        VERBOSE = True
+        printVerbose("Verbose ON")
+    return args
+
 
 def getFullResult(data):
-	resultCode = data['result']['responseCode'] 
-	resultMessage = data['result']['message'] 
-	resultData = data['result']['data'] 
-	
-	printVerbose("Code réponse:%s\nMessage:%s\nDonnées:%s"%(resultCode, resultMessage,resultData)) 
-	
-	return resultCode, resultMessage, resultData
-	
-def checkArgs(argv):
-	global VERBOSE
-	
-	try:                                
-		opts, args = getopt.getopt(argv, "hvag:o:k:m:e:", ["help", "verbose", "auto", "gui", "operation=", "key=", "mode=","epg_id="])
-		
-		for flag, value in opts:
-			if flag in ('-v', '--verbose'):
-				VERBOSE = True
-				printVerbose("Verbose ON")
-		
-		return opts, args
-		
-	except getopt.GetoptError:
-		printError("Argument(s) invalide(s). Utilisez -h ou --help pour obtenir plus d'informations.")
-		sys.exit('Argument(s) invalide(s)')
-		
-def getFlagsAndValues(opts):
-	
-	operation = ''
-	key = ''
-	mode = ''
-	epg_id = ''
+    """Extrait responseCode, message et data depuis la réponse JSON du décodeur."""
+    if not isinstance(data, dict) or not isinstance(data.get("result"), dict):
+        raise TypeError("Structure JSON inattendue dans la réponse du décodeur.")
+    res = data["result"]
+    result_code = res.get("responseCode")
+    result_message = res.get("message", "")
+    result_data = res.get("data", {})
+    if result_code is None:
+        raise ValueError("Champ 'responseCode' manquant dans la réponse du décodeur.")
 
-	for flag, value in opts:
-		if flag not in ('-v','--verbose'):
-			printVerbose("%s:%s"%(flag,value))
-		
-		if flag in ('-o', '--operation'):
-			operation = value
-			
-		elif flag in ('-k', '--key'):
-			key = value
-		
-		elif flag in ('-m', '--mode'):
-			mode = value
-		
-		elif flag in ('-e', '--epg_id'):
-			epg_id = value
-		
-		elif flag in ('-h', '--help'):
-			usage()
-			sys.exit(0)
-		
-	return operation, key, mode, epg_id
-	
-def translateArg(arg,file):
-	with open(file) as json_file:
-		data = json.load(json_file)
-	
-	return data[arg]
-	
-def checkIfArgsAreEmpty(args):
-	if len(args) != 0:
-		printError("Argument(s) invalide(s). Utilisez -h ou --help pour obtenir plus d'informations.")
-		sys.exit('Argument(s) invalide(s)')
-	
-def usage():
-	print(__doc__)
-	
+    printVerbose(
+        f"Code réponse:{result_code}\nMessage:{result_message}\nDonnées:{result_data}"
+    )
+    return result_code, result_message, result_data
+
+
 def printVerbose(text):
-	if VERBOSE:
-		print("\033[1;34;40m%s\033[0m"%text)
-		
+    if VERBOSE:
+        print(f"\033[1;34;40m{text}\033[0m")
+
+
 def printError(text):
-	print("\033[1;31;40m%s\033[0m"%text)
+    print(f"\033[1;31;40m{text}\033[0m", file=sys.stderr)
+
+
+def main(argv=None):
+    global VERBOSE
+    if argv is None:
+        argv = sys.argv[1:]
+
+    if len(argv) == 0:
+        try:
+            import tvOrangeGui
+
+            tvOrangeGui.main()
+            sys.exit(0)
+        except Exception as e:  # noqa: BLE001
+            printError(f"Erreur lors du lancement de l'interface graphique : {e}")
+            sys.exit(1)
+
+    VERBOSE = False
+    args = parse_args(argv)
+
+    if args.gui:
+        try:
+            import tvOrangeGui
+
+            tvOrangeGui.main()
+            sys.exit(0)
+        except Exception as e:  # noqa: BLE001
+            printError(f"Erreur lors du lancement de l'interface graphique : {e}")
+            sys.exit(1)
+
+    if args.auto:
+        print("Recherche automatique du décodeur TV sur le réseau...")
+        ip, port, info = discover_decoder_ip(lambda m: print(f"  {m}"))
+        if ip:
+            print("\nDécodeur TV trouvé avec succès !")
+            print(f"  Adresse IP : {ip}")
+            print(f"  Port       : {port}")
+            print(f"  Détail     : {info}")
+            save_config(ip, port)
+            print(f"Configuration sauvegardée dans '{CONFIG_FILE}'.")
+            sys.exit(0)
+        else:
+            printError("Aucun décodeur TV détecté sur le réseau local.")
+            sys.exit(1)
+
+    operation = args.operation.strip()
+    if operation not in ("1", "9", "10"):
+        printError(
+            "L'opération (-o ou --operation) doit être '1', '9' ou '10'. "
+            "Utilisez -h ou --help pour obtenir plus d'informations."
+        )
+        sys.exit(1)
+
+    ip, port = load_config()
+    client = OrangeTVClient(ip, port)
+
+    if operation == "1":
+        if not args.key:
+            printError("L'option -k / --key est obligatoire avec -o 1.")
+            sys.exit(1)
+        if args.mode not in ("0", "1", "2"):
+            printError(
+                "L'option -m / --mode doit être '0', '1' ou '2' avec -o 1."
+            )
+            sys.exit(1)
+        if not client.keys:
+            printError(f"Impossible de charger la table des touches ({KEYS_FILE}).")
+            sys.exit(1)
+        if args.key not in client.keys:
+            printError(
+                f"Touche inconnue : '{args.key}'. Consultez keys.json ou keys.md."
+            )
+            sys.exit(1)
+        printVerbose(f"-o:{operation}\n-k:{args.key}\n-m:{args.mode}")
+        success, result, err = client.send_key(args.key, mode=int(args.mode))
+
+    elif operation == "9":
+        if not args.epg_id:
+            printError("L'option -e / --epg_id est obligatoire avec -o 9.")
+            sys.exit(1)
+        if not client.epg_ids:
+            printError(
+                f"Impossible de charger la table des chaînes ({EPG_IDS_FILE})."
+            )
+            sys.exit(1)
+        if args.epg_id not in client.epg_ids:
+            printError(
+                f"EPG ID ou chaîne inconnue : '{args.epg_id}'. Consultez epg_ids.json ou epg_ids.md."
+            )
+            sys.exit(1)
+        printVerbose(f"-o:{operation}\n-e:{args.epg_id}")
+        success, result, err = client.change_channel(args.epg_id)
+
+    else:  # operation == "10"
+        printVerbose(f"-o:{operation}")
+        success, result, err = client.get_status()
+
+    if not success:
+        printError(err or "Erreur de communication avec le décodeur.")
+        sys.exit(1)
+
+    try:
+        result_code, _, _ = getFullResult(result)
+    except (TypeError, ValueError) as e:
+        printError(f"Réponse invalide du décodeur : {e}")
+        sys.exit(1)
+
+    try:
+        exit_code = int(result_code)
+    except (TypeError, ValueError):
+        exit_code = 1
+
+    sys.exit(exit_code)
+
 
 if __name__ == "__main__":
-	main(sys.argv[1:])
+    main(sys.argv[1:])

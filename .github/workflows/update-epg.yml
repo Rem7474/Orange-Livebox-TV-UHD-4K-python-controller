@@ -1,0 +1,64 @@
+name: Update EPG Channels
+
+on:
+  schedule:
+    - cron: '30 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-epg:
+    name: Synchroniser epg_ids depuis iptv-org/epg
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v4
+
+      - name: Configuration de Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Installation des dépendances
+        run: |
+          pip install --only-binary :all: -r requirements-dev.txt
+
+      - name: Actualisation du catalogue des chaînes
+        run: |
+          python scripts/update_epg_ids.py
+
+      - name: Vérification des modifications
+        id: check_diff
+        run: |
+          if git diff --quiet -- epg_ids.json android_app/assets/epg_ids.json epg_ids.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validation par les tests unitaires
+        if: steps.check_diff.outputs.changed == 'true'
+        run: |
+          pytest -v tests/
+
+      - name: Création / mise à jour de la Pull Request
+        if: steps.check_diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/update-epg-ids
+          base: master
+          delete-branch: true
+          commit-message: "chore(epg): mise à jour automatique du catalogue des chaînes"
+          title: "chore(epg): mise à jour automatique du catalogue des chaînes Orange TV"
+          body: |
+            Mise à jour automatique du catalogue des chaînes Orange TV depuis `chaines-tv.orange.fr` (`iptv-org/epg`) via `scripts/update_epg_ids.py`.
+
+            Fichiers actualisés :
+            - `epg_ids.json`
+            - `android_app/assets/epg_ids.json`
+            - `epg_ids.md`

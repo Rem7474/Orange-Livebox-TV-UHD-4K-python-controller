@@ -208,15 +208,18 @@ class LiveboxService extends ChangeNotifier {
     }
   }
 
-  Future<DecoderStatus> getStatus() async {
-    final status = await _fetchStatus();
+  Future<DecoderStatus> getStatus({bool interactive = true}) async {
+    final status = await _fetchStatus(interactive: interactive);
     _lastStatus = status;
     notifyListeners();
     return status;
   }
 
-  Future<DecoderStatus> _fetchStatus() async {
-    if (!await _permissionService.request()) {
+  Future<DecoderStatus> _fetchStatus({required bool interactive}) async {
+    final granted = interactive
+        ? await _permissionService.request()
+        : await _permissionService.isGranted();
+    if (!granted) {
       return DecoderStatus.permissionDenied();
     }
     try {
@@ -237,5 +240,11 @@ class LiveboxService extends ChangeNotifier {
     } catch (e) {
       return DecoderStatus.offline(_describeError(e));
     }
+  }
+
+  @override
+  void dispose() {
+    _client.close();
+    super.dispose();
   }
 }

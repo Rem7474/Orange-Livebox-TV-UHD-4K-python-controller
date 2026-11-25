@@ -35,3 +35,15 @@ updates:
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore(deps)"
+
+  # Veille et mises à jour des dépendances Gradle Android (android_app/android)
+  - package-ecosystem: "gradle"
+    directory: "/android_app/android"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "chore(deps)"

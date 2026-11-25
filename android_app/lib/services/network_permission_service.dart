@@ -3,10 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:permission_handler/permission_handler.dart';
 
 class NetworkPermissionService {
-  static const _permissions = [
-    Permission.nearbyWifiDevices,
-    Permission.accessLocalNetwork,
-  ];
+  static const _permissions = [Permission.accessLocalNetwork];
 
   // kIsWeb est vérifié en premier et court-circuite avant Platform.isAndroid :
   // dart:io Platform lève une exception sur le web.
