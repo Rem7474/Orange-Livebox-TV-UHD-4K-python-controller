@@ -103,7 +103,7 @@ class _MainNavigationState extends State<MainNavigation> {
   static const Color _orangeColor = Color(0xFFFF6600);
   static const Color _navBarColor = Color(0xFF1B1B22);
 
-  static const Map<LogicalKeyboardKey, RemoteKey> _keyShortcuts = {
+  static final Map<LogicalKeyboardKey, RemoteKey> _keyShortcuts = {
     LogicalKeyboardKey.arrowUp: RemoteKey.up,
     LogicalKeyboardKey.arrowDown: RemoteKey.down,
     LogicalKeyboardKey.arrowLeft: RemoteKey.left,
