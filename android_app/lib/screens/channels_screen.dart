@@ -17,7 +17,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
   late final LiveboxService _service;
   List<Channel> _filteredChannels = [];
   bool _onlyFavorites = false;
-  String? _zappingChannelName;
+  String? _zappingChannelEpgId;
 
   @override
   void initState() {
@@ -40,28 +40,42 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
 
   void _applyFilter() {
     final query = _searchController.text.trim().toLowerCase();
+    final filtered = _service.allChannels.where((c) {
+      if (_onlyFavorites && !c.isFavorite) return false;
+      if (query.isEmpty) return true;
+      final matchName = c.name.toLowerCase().contains(query);
+      final matchNum = c.number?.toString().contains(query) ?? false;
+      return matchName || matchNum;
+    }).toList();
+
+    filtered.sort((a, b) {
+      if (a.isFavorite != b.isFavorite) {
+        return a.isFavorite ? -1 : 1;
+      }
+      if (a.number != null && b.number != null) {
+        return a.number!.compareTo(b.number!);
+      }
+      if (a.number != null) return -1;
+      if (b.number != null) return 1;
+      return a.name.compareTo(b.name);
+    });
+
     setState(() {
-      _filteredChannels = _service.allChannels.where((c) {
-        if (_onlyFavorites && !c.isFavorite) return false;
-        if (query.isEmpty) return true;
-        final matchName = c.name.toLowerCase().contains(query);
-        final matchNum = c.number?.toString().contains(query) ?? false;
-        return matchName || matchNum;
-      }).toList();
+      _filteredChannels = filtered;
     });
   }
 
   Future<void> _zapToChannel(Channel channel) async {
     unawaited(HapticFeedback.mediumImpact());
-    setState(() => _zappingChannelName = channel.name);
+    setState(() => _zappingChannelEpgId = channel.epgId);
 
     final ok = await _service.changeChannel(channel.epgId);
     if (ok) {
-      unawaited(_service.getStatus());
+      unawaited(_service.getStatus(interactive: false));
     }
 
     if (mounted) {
-      setState(() => _zappingChannelName = null);
+      setState(() => _zappingChannelEpgId = null);
       final reason = _service.lastError;
       ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -213,7 +227,7 @@ class _ChannelsScreenState extends State<ChannelsScreen> {
               itemCount: _filteredChannels.length,
               itemBuilder: (context, index) {
                 final channel = _filteredChannels[index];
-                final isZappingThis = _zappingChannelName == channel.name;
+                final isZappingThis = _zappingChannelEpgId == channel.epgId;
 
                 return Card(
                   margin: const EdgeInsets.symmetric(vertical: 4),

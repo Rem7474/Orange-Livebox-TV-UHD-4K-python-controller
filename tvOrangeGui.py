@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Interface Graphique pour le contrôleur de Décodeur TV UHD 4K Orange.
 Permet de piloter la Livebox TV sans utiliser la ligne de commande :
@@ -11,33 +9,41 @@ Permet de piloter la Livebox TV sans utiliser la ligne de commande :
 - Exécution asynchrone pour une réactivité maximale
 """
 
-import os
-import sys
 import json
-import re
-import socket
-import subprocess
 import threading
-import requests
 import tkinter as tk
-from tkinter import ttk, messagebox
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
+from tkinter import messagebox, ttk
 
-# Chemins d'accès (compatibles script Python standard et exécutable PyInstaller --onefile)
-if getattr(sys, 'frozen', False):
-    BUNDLE_DIR = sys._MEIPASS
-    APP_DIR = os.path.dirname(sys.executable)
-else:
-    BUNDLE_DIR = os.path.dirname(os.path.abspath(__file__))
-    APP_DIR = BUNDLE_DIR
+from livebox_core import (
+    CONFIG_FILE,
+    DEFAULT_IP,
+    DEFAULT_PORT,
+    EPG_IDS_FILE,
+    KEYS_FILE,
+    OrangeTVClient,
+    discover_decoder_ip,
+)
+from livebox_core import (
+    load_config as core_load_config,
+)
+from livebox_core import (
+    save_config as core_save_config,
+)
 
-CONFIG_FILE = os.path.join(APP_DIR, "config.json")
-RESULT_FILE = os.path.join(APP_DIR, "result.json")
-
-# Les données peuvent être dans le dossier de l'exécutable ou embarquées dans le bundle
-KEYS_FILE = os.path.join(APP_DIR, "keys.json") if os.path.exists(os.path.join(APP_DIR, "keys.json")) else os.path.join(BUNDLE_DIR, "keys.json")
-EPG_IDS_FILE = os.path.join(APP_DIR, "epg_ids.json") if os.path.exists(os.path.join(APP_DIR, "epg_ids.json")) else os.path.join(BUNDLE_DIR, "epg_ids.json")
+__all__ = [
+    "CONFIG_FILE",
+    "DEFAULT_IP",
+    "DEFAULT_PORT",
+    "EPG_IDS_FILE",
+    "KEYS_FILE",
+    "THEME",
+    "ExploreDialog",
+    "OrangeTVApp",
+    "OrangeTVClient",
+    "discover_decoder_ip",
+    "main",
+]
 
 # Palette graphique moderne (Style Orange & Sombre épuré)
 THEME = {
@@ -63,202 +69,6 @@ THEME = {
     "console_text": "#cfcfd6",
 }
 
-DEFAULT_IP = "192.168.1.15"  # NOSONAR
-DEFAULT_PORT = "8080"
-
-
-def discover_decoder_ip(progress_cb=None):
-    """
-    Recherche automatique de l'IP du décodeur TV :
-    1. Résolution DNS de noms d'hôtes courants contenant 'tv' (livebox-tv, decodeur-tv, tv...).
-    2. Analyse du cache ARP local et des adresses actives du sous-réseau.
-    3. Résolution DNS inverse (reverse lookup) pour vérifier si le hostname contient 'tv'.
-    4. Test direct de l'API Livebox TV sur le port 8080 avec vérification du friendlyName.
-    """
-    if progress_cb:
-        progress_cb("Recherche par nom d'hôte DNS...")
-
-    # 1. Noms d'hôtes courants contenant 'tv'
-    dns_candidates = [
-        "livebox-tv.home", "decodeur-tv.home", "tv.home", "decodeurtv.home",
-        "livebox-tv", "decodeur-tv", "tv", "orange-tv.home", "orangetv.home"
-    ]
-    for host in dns_candidates:
-        try:
-            ip = socket.gethostbyname(host)
-            # Vérifier si le décodeur répond bien sur le port 8080
-            r = requests.get(f"http://{ip}:8080/remoteControl/cmd", params={"operation": 10}, timeout=1.0)  # NOSONAR
-            if r.status_code == 200:
-                fname = r.json().get("result", {}).get("data", {}).get("friendlyName", host)
-                return ip, "8080", f"Hostname DNS '{host}' ({fname})"
-        except Exception:
-            pass
-
-    # 2. Détermination du sous-réseau local (ex: 192.168.1)
-    subnet = "192.168.1"
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("192.168.1.1", 80))  # NOSONAR
-        local_ip = s.getsockname()[0]
-        s.close()
-        subnet = ".".join(local_ip.split(".")[:3])
-    except Exception:
-        pass
-
-    if progress_cb:
-        progress_cb(f"Analyse des périphériques du réseau {subnet}.x...")
-
-    # 3. Récupération des IPs du cache ARP
-    arp_ips = []
-    try:
-        arp_out = subprocess.check_output("arp -a", shell=True, text=True, errors="ignore")
-        found = re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", arp_out)
-        arp_ips = [
-            ip for ip in found
-            if ip.startswith(subnet) and not ip.endswith(".255") and not ip.endswith(".1")
-        ]
-    except Exception:
-        pass
-
-    def probe_single_ip(ip):
-        # A. Test port 8080 & API Livebox TV (ultra rapide et fiable)
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(0.3)
-            res = sock.connect_ex((ip, 8080))
-            sock.close()
-            if res == 0:
-                r = requests.get(f"http://{ip}:8080/remoteControl/cmd", params={"operation": 10}, timeout=0.8)  # NOSONAR
-                if r.status_code == 200:
-                    data = r.json()
-                    res_obj = data.get("result", {})
-                    if res_obj.get("message") == "ok" or res_obj.get("responseCode") == "0":
-                        fname = res_obj.get("data", {}).get("friendlyName", "Décodeur TV Orange")
-                        return ip, "8080", fname
-        except Exception:
-            pass
-
-        # B. Test DNS inverse : est-ce que le hostname contient 'tv' ?
-        try:
-            h, _, _ = socket.gethostbyaddr(ip)
-            if "tv" in h.lower():
-                return ip, "8080", f"Hostname: {h}"
-        except Exception:
-            pass
-
-        return None
-
-    # Test prioritaire sur les adresses actives de l'ARP cache
-    if arp_ips:
-        with ThreadPoolExecutor(max_workers=20) as ex:
-            for match in ex.map(probe_single_ip, arp_ips):
-                if match:
-                    return match
-
-    # 4. Balayage complet du sous-réseau en tâche de fond si non trouvé dans l'ARP
-    if progress_cb:
-        progress_cb(f"Balayage approfondi du sous-réseau {subnet}.1 à {subnet}.254...")
-
-    all_ips = [f"{subnet}.{i}" for i in range(1, 255) if f"{subnet}.{i}" not in arp_ips]
-    with ThreadPoolExecutor(max_workers=40) as ex:
-        for match in ex.map(probe_single_ip, all_ips):
-            if match:
-                return match
-
-    return None, None, None
-
-
-class OrangeTVClient:
-    """Gestionnaire de communication avec l'API du décodeur Orange."""
-
-    def __init__(self, ip=DEFAULT_IP, port=DEFAULT_PORT):
-        self.ip = ip
-        self.port = port
-        self.keys = {}
-        self.epg_ids = {}
-        self.load_data()
-
-    def get_url(self):
-        clean_ip = self.ip.strip()
-        if clean_ip.startswith("http://") or clean_ip.startswith("https://"):
-            return f"{clean_ip}:{self.port}/remoteControl/cmd"
-        return f"http://{clean_ip}:{self.port}/remoteControl/cmd"  # NOSONAR
-
-    def load_data(self):
-        if os.path.exists(KEYS_FILE):
-            try:
-                with open(KEYS_FILE, "r", encoding="utf-8") as f:
-                    self.keys = json.load(f)
-            except Exception as e:
-                print(f"Erreur chargement keys.json: {e}")
-
-        if os.path.exists(EPG_IDS_FILE):
-            try:
-                with open(EPG_IDS_FILE, "r", encoding="utf-8") as f:
-                    self.epg_ids = json.load(f)
-            except Exception as e:
-                print(f"Erreur chargement epg_ids.json: {e}")
-
-    def send_key(self, key_name_or_code, mode=0, timeout=3.0):
-        """Opération 1: envoie une touche."""
-        key_str = str(key_name_or_code)
-        target_key = self.keys.get(key_str, key_str)
-        params = {
-            "operation": "1",
-            "key": target_key,
-            "mode": str(mode)
-        }
-        return self._send_request(params, timeout)
-
-    def change_channel(self, channel_or_epg, timeout=3.0):
-        """Opération 9: change de chaîne par code EPG ou nom."""
-        chan_str = str(channel_or_epg)
-        epg_id = self.epg_ids.get(chan_str, chan_str)
-        params = {
-            "operation": "9",
-            "epg_id": epg_id,
-            "uui": 1
-        }
-        return self._send_request(params, timeout)
-
-    def get_status(self, timeout=3.0):
-        """Opération 10: statut et infos système."""
-        params = {"operation": "10"}
-        return self._send_request(params, timeout)
-
-    def send_raw_operation(self, operation, extra_params=None, timeout=3.0):
-        """Opération générique : teste un mode ou une opération avec paramètres optionnels."""
-        params = {"operation": str(operation)}
-        if extra_params and isinstance(extra_params, dict):
-            params.update(extra_params)
-        return self._send_request(params, timeout)
-
-    def send_key_long_press(self, key_name_or_code, duration=0.2, timeout=3.0):
-        """Simule un appui long : mode 1 (enfoncer), attente, puis mode 2 (relâcher)."""
-        import time
-        self.send_key(key_name_or_code, mode=1, timeout=timeout)
-        time.sleep(duration)
-        return self.send_key(key_name_or_code, mode=2, timeout=timeout)
-
-    def _send_request(self, params, timeout):
-        url = self.get_url()
-        try:
-            resp = requests.get(url, params=params, timeout=timeout)
-            resp.raise_for_status()
-            data = resp.json()
-            try:
-                with open(RESULT_FILE, "w", encoding="utf-8") as outfile:
-                    json.dump(data, outfile, indent=2)
-            except Exception:
-                pass
-            return True, data, None
-        except requests.exceptions.Timeout:
-            return False, None, f"Délai d'attente dépassé (timeout {timeout}s) pour {url}"
-        except requests.exceptions.ConnectionError:
-            return False, None, f"Connexion impossible au décodeur ({url}). Vérifiez l'adresse IP et le réseau."
-        except Exception as e:
-            return False, None, f"Erreur de communication : {str(e)}"
-
 
 class OrangeTVApp(tk.Tk):
     """Application graphique principale."""
@@ -276,7 +86,6 @@ class OrangeTVApp(tk.Tk):
 
         # Variables UI
         self.ip_var = tk.StringVar(value=self.current_ip)
-        self.port_var = tk.StringVar(value=self.current_port)
         self.mode_var = tk.IntVar(value=0)  # 0: court, 1: enfoncer, 2: relâcher
         self.search_chan_var = tk.StringVar()
         self.direct_chan_var = tk.StringVar()
@@ -288,38 +97,43 @@ class OrangeTVApp(tk.Tk):
         self.load_channels_to_tree()
 
     def load_config(self):
-        self.current_ip = DEFAULT_IP
-        self.current_port = DEFAULT_PORT
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    cfg = json.load(f)
-                    self.current_ip = cfg.get("ip", DEFAULT_IP)
-                    self.current_port = str(cfg.get("port", DEFAULT_PORT))
-            except Exception:
-                pass
+        self.current_ip, self.current_port = core_load_config(CONFIG_FILE)
 
     def save_config(self, show_popup=True):
         new_ip = self.ip_var.get().strip()
-        new_port = self.port_var.get().strip()
         if not new_ip:
             if show_popup:
-                messagebox.showwarning("Adresse IP vide", "Veuillez renseigner une adresse IP valide.")
+                messagebox.showwarning(
+                    "Adresse IP vide",
+                    "Veuillez renseigner une adresse IP valide.",
+                )
             return
 
         self.current_ip = new_ip
-        self.current_port = new_port or DEFAULT_PORT
+        self.current_port = self.current_port or DEFAULT_PORT
         self.client.ip = self.current_ip
         self.client.port = self.current_port
 
         try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump({"ip": self.current_ip, "port": self.current_port}, f, indent=2)
-            self.log(f"Configuration sauvegardée : {self.current_ip}:{self.current_port}", "info")
+            core_save_config(
+                self.current_ip,
+                self.current_port,
+                config_file=CONFIG_FILE,
+            )
+            self.log(
+                f"Configuration sauvegardée : {self.current_ip}:{self.current_port}",
+                "info",
+            )
             if show_popup:
-                messagebox.showinfo("Configuration", "Adresse IP enregistrée avec succès.")
-        except Exception as e:
-            self.log(f"Erreur lors de la sauvegarde de la configuration : {e}", "error")
+                messagebox.showinfo(
+                    "Configuration",
+                    "Adresse IP enregistrée avec succès.",
+                )
+        except OSError as e:
+            self.log(
+                f"Erreur lors de la sauvegarde de la configuration : {e}",
+                "error",
+            )
 
     def setup_styles(self):
         self.style = ttk.Style(self)
@@ -332,30 +146,30 @@ class OrangeTVApp(tk.Tk):
             fieldbackground=THEME["entry_bg"],
             rowheight=26,
             font=("Segoe UI", 10),
-            borderwidth=0
+            borderwidth=0,
         )
         self.style.configure(
             "Treeview.Heading",
             background=THEME["card_bg"],
             foreground=THEME["text"],
             font=("Segoe UI", 10, "bold"),
-            relief="flat"
+            relief="flat",
         )
         self.style.map(
             "Treeview",
             background=[("selected", THEME["accent"])],
-            foreground=[("selected", "#ffffff")]
+            foreground=[("selected", "#ffffff")],
         )
         self.style.map(
             "Treeview.Heading",
-            background=[("active", THEME["btn_hover"])]
+            background=[("active", THEME["btn_hover"])],
         )
 
         self.style.configure(
             "Vertical.TScrollbar",
             background=THEME["card_bg"],
             troughcolor=THEME["bg"],
-            arrowcolor=THEME["text_muted"]
+            arrowcolor=THEME["text_muted"],
         )
 
     def build_ui(self):
@@ -366,72 +180,100 @@ class OrangeTVApp(tk.Tk):
         title_frame = tk.Frame(top_bar, bg=THEME["card_bg"])
         title_frame.pack(side=tk.LEFT, fill=tk.Y)
 
-        dot = tk.Canvas(title_frame, width=16, height=16, bg=THEME["card_bg"], highlightthickness=0)
+        dot = tk.Canvas(
+            title_frame, width=16, height=16, bg=THEME["card_bg"], highlightthickness=0
+        )
         dot.create_oval(2, 2, 14, 14, fill=THEME["accent"], outline="")
         dot.pack(side=tk.LEFT, padx=(0, 8))
 
         lbl_title = tk.Label(
-            title_frame, text="LIVEBOX TV",
-            font=("Segoe UI", 14, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+            title_frame,
+            text="LIVEBOX TV",
+            font=("Segoe UI", 14, "bold"),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
         )
         lbl_title.pack(side=tk.LEFT)
 
         lbl_sub = tk.Label(
-            title_frame, text="UHD 4K",
-            font=("Segoe UI", 10), fg=THEME["accent"], bg=THEME["card_bg"]
+            title_frame,
+            text="UHD 4K",
+            font=("Segoe UI", 10),
+            fg=THEME["accent"],
+            bg=THEME["card_bg"],
         )
         lbl_sub.pack(side=tk.LEFT, padx=(6, 0))
 
-        # Zone configuration IP, Auto-détection & Statut
+        # Zone configuration IP, Auto-détection & Statut (port 8080 fixe)
         cfg_frame = tk.Frame(top_bar, bg=THEME["card_bg"])
         cfg_frame.pack(side=tk.RIGHT)
 
         tk.Label(
-            cfg_frame, text="IP :", font=("Segoe UI", 10),
-            fg=THEME["text_muted"], bg=THEME["card_bg"]
+            cfg_frame,
+            text="IP :",
+            font=("Segoe UI", 10),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
         ).pack(side=tk.LEFT, padx=(8, 2))
 
         ip_entry = tk.Entry(
-            cfg_frame, textvariable=self.ip_var, width=14, font=("Consolas", 10),
-            bg=THEME["entry_bg"], fg=THEME["text"], insertbackground=THEME["text"],
-            relief="flat", highlightthickness=1, highlightbackground=THEME["card_border"]
+            cfg_frame,
+            textvariable=self.ip_var,
+            width=14,
+            font=("Consolas", 10),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            insertbackground=THEME["text"],
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
         )
         ip_entry.pack(side=tk.LEFT, padx=3, ipady=3)
 
-        tk.Label(
-            cfg_frame, text="Port :", font=("Segoe UI", 10),
-            fg=THEME["text_muted"], bg=THEME["card_bg"]
-        ).pack(side=tk.LEFT, padx=(4, 2))
-
-        port_entry = tk.Entry(
-            cfg_frame, textvariable=self.port_var, width=5, font=("Consolas", 10),
-            bg=THEME["entry_bg"], fg=THEME["text"], insertbackground=THEME["text"],
-            relief="flat", highlightthickness=1, highlightbackground=THEME["card_border"]
-        )
-        port_entry.pack(side=tk.LEFT, padx=3, ipady=3)
-
         # Bouton Auto-détection de l'IP
         self.btn_auto_detect = self.create_button(
-            cfg_frame, text="🔍 Détecter IP", command=self.action_auto_detect_ip,
-            bg=THEME["btn_bg"], fg="#64b5f6", px=8, py=3, font=("Segoe UI", 9, "bold")
+            cfg_frame,
+            text="🔍 Détecter IP",
+            command=self.action_auto_detect_ip,
+            bg=THEME["btn_bg"],
+            fg="#64b5f6",
+            px=8,
+            py=3,
+            font=("Segoe UI", 9, "bold"),
         )
         self.btn_auto_detect.pack(side=tk.LEFT, padx=4)
 
         btn_save = self.create_button(
-            cfg_frame, text="Sauvegarder", command=self.save_config,
-            bg=THEME["btn_bg"], fg=THEME["btn_text"], px=8, py=3
+            cfg_frame,
+            text="Sauvegarder",
+            command=self.save_config,
+            bg=THEME["btn_bg"],
+            fg=THEME["btn_text"],
+            px=8,
+            py=3,
         )
         btn_save.pack(side=tk.LEFT, padx=4)
 
         btn_info = self.create_button(
-            cfg_frame, text="État Décodeur (Op 10)", command=self.action_get_status,
-            bg=THEME["accent"], fg="#ffffff", px=9, py=3
+            cfg_frame,
+            text="État Décodeur (Op 10)",
+            command=self.action_get_status,
+            bg=THEME["accent"],
+            fg="#ffffff",
+            px=9,
+            py=3,
         )
         btn_info.pack(side=tk.LEFT, padx=4)
 
         btn_explore = self.create_button(
-            cfg_frame, text="🔬 Exploration", command=self.action_open_explore,
-            bg=THEME["btn_bg"], fg="#ce93d8", px=9, py=3, font=("Segoe UI", 9, "bold")
+            cfg_frame,
+            text="🔬 Exploration",
+            command=self.action_open_explore,
+            bg=THEME["btn_bg"],
+            fg="#ce93d8",
+            px=9,
+            py=3,
+            font=("Segoe UI", 9, "bold"),
         )
         btn_explore.pack(side=tk.LEFT, padx=4)
 
@@ -441,8 +283,13 @@ class OrangeTVApp(tk.Tk):
 
         # Colonne Gauche : Télécommande Virtuelle
         remote_card = tk.Frame(
-            main_content, bg=THEME["card_bg"], bd=0, padx=18, pady=16,
-            highlightthickness=1, highlightbackground=THEME["card_border"]
+            main_content,
+            bg=THEME["card_bg"],
+            bd=0,
+            padx=18,
+            pady=16,
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
         )
         remote_card.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
@@ -463,50 +310,85 @@ class OrangeTVApp(tk.Tk):
         header_remote.pack(fill=tk.X, pady=(0, 12))
 
         lbl = tk.Label(
-            header_remote, text="TÉLÉCOMMANDE",
-            font=("Segoe UI", 11, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+            header_remote,
+            text="TÉLÉCOMMANDE",
+            font=("Segoe UI", 11, "bold"),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
         )
         lbl.pack(side=tk.LEFT)
 
         btn_power = tk.Button(
-            header_remote, text="⏻ POWER", font=("Segoe UI", 10, "bold"),
-            bg=THEME["power_btn"], fg="#ffffff", activebackground=THEME["power_hover"],
-            activeforeground="#ffffff", relief="flat", cursor="hand2", padx=12, pady=4,
-            command=lambda: self.action_send_key("POWER")
+            header_remote,
+            text="⏻ POWER",
+            font=("Segoe UI", 10, "bold"),
+            bg=THEME["power_btn"],
+            fg="#ffffff",
+            activebackground=THEME["power_hover"],
+            activeforeground="#ffffff",
+            relief="flat",
+            cursor="hand2",
+            padx=12,
+            pady=4,
+            command=lambda: self.action_send_key("POWER"),
         )
         btn_power.pack(side=tk.RIGHT)
 
         # 2. Mode d'appui (3 colonnes uniformes)
         mode_frame = tk.LabelFrame(
-            parent, text="Mode d'appui", font=("Segoe UI", 9),
-            bg=THEME["card_bg"], fg=THEME["text_muted"], padx=8, pady=4,
-            relief="solid", bd=1
+            parent,
+            text="Mode d'appui",
+            font=("Segoe UI", 9),
+            bg=THEME["card_bg"],
+            fg=THEME["text_muted"],
+            padx=8,
+            pady=4,
+            relief="solid",
+            bd=1,
         )
         mode_frame.pack(fill=tk.X, pady=(0, 12))
         for c in range(3):
             mode_frame.columnconfigure(c, weight=1, uniform="mode_col")
 
         rb_short = tk.Radiobutton(
-            mode_frame, text="Court (0)", variable=self.mode_var, value=0,
-            bg=THEME["card_bg"], fg=THEME["text"], selectcolor=THEME["card_bg"],
-            activebackground=THEME["card_bg"], activeforeground=THEME["accent"],
-            font=("Segoe UI", 8)
+            mode_frame,
+            text="Court (0)",
+            variable=self.mode_var,
+            value=0,
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            selectcolor=THEME["card_bg"],
+            activebackground=THEME["card_bg"],
+            activeforeground=THEME["accent"],
+            font=("Segoe UI", 8),
         )
         rb_short.grid(row=0, column=0, sticky="w")
 
         rb_down = tk.Radiobutton(
-            mode_frame, text="Maintien (1)", variable=self.mode_var, value=1,
-            bg=THEME["card_bg"], fg=THEME["text"], selectcolor=THEME["card_bg"],
-            activebackground=THEME["card_bg"], activeforeground=THEME["accent"],
-            font=("Segoe UI", 8)
+            mode_frame,
+            text="Maintien (1)",
+            variable=self.mode_var,
+            value=1,
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            selectcolor=THEME["card_bg"],
+            activebackground=THEME["card_bg"],
+            activeforeground=THEME["accent"],
+            font=("Segoe UI", 8),
         )
         rb_down.grid(row=0, column=1, sticky="w")
 
         rb_up = tk.Radiobutton(
-            mode_frame, text="Relâche (2)", variable=self.mode_var, value=2,
-            bg=THEME["card_bg"], fg=THEME["text"], selectcolor=THEME["card_bg"],
-            activebackground=THEME["card_bg"], activeforeground=THEME["accent"],
-            font=("Segoe UI", 8)
+            mode_frame,
+            text="Relâche (2)",
+            variable=self.mode_var,
+            value=2,
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            selectcolor=THEME["card_bg"],
+            activebackground=THEME["card_bg"],
+            activeforeground=THEME["accent"],
+            font=("Segoe UI", 8),
         )
         rb_up.grid(row=0, column=2, sticky="w")
 
@@ -516,10 +398,18 @@ class OrangeTVApp(tk.Tk):
         for c in range(4):
             fn_row.columnconfigure(c, weight=1, uniform="fn_col")
 
-        self.create_remote_btn(fn_row, "MENU", "MENU").grid(row=0, column=0, sticky="nsew", padx=2, ipady=3)
-        self.create_remote_btn(fn_row, "RETOUR", "BACK").grid(row=0, column=1, sticky="nsew", padx=2, ipady=3)
-        self.create_remote_btn(fn_row, "DIRECT", "DIRECT").grid(row=0, column=2, sticky="nsew", padx=2, ipady=3)
-        self.create_remote_btn(fn_row, "VOD", "VOD").grid(row=0, column=3, sticky="nsew", padx=2, ipady=3)
+        self.create_remote_btn(fn_row, "MENU", "MENU").grid(
+            row=0, column=0, sticky="nsew", padx=2, ipady=3
+        )
+        self.create_remote_btn(fn_row, "RETOUR", "BACK").grid(
+            row=0, column=1, sticky="nsew", padx=2, ipady=3
+        )
+        self.create_remote_btn(fn_row, "DIRECT", "DIRECT").grid(
+            row=0, column=2, sticky="nsew", padx=2, ipady=3
+        )
+        self.create_remote_btn(fn_row, "VOD", "VOD").grid(
+            row=0, column=3, sticky="nsew", padx=2, ipady=3
+        )
 
         # 4. Pavé Directionnel (D-Pad en croix 3x3 parfaitement symétrique)
         dpad_outer = tk.Frame(parent, bg=THEME["card_bg"], pady=4)
@@ -532,63 +422,74 @@ class OrangeTVApp(tk.Tk):
             dpad_frame.columnconfigure(i, weight=1, uniform="dp_c")
             dpad_frame.rowconfigure(i, weight=1, uniform="dp_r")
 
-        # Haut
-        self.create_remote_btn(dpad_frame, "▲", "UP", width=5, height=2, font=("Segoe UI", 11, "bold")).grid(
-            row=0, column=1, sticky="nsew", padx=3, pady=3
-        )
-        # Gauche
-        self.create_remote_btn(dpad_frame, "◀", "LEFT", width=5, height=2, font=("Segoe UI", 11, "bold")).grid(
-            row=1, column=0, sticky="nsew", padx=3, pady=3
-        )
-        # OK (au centre, orange)
         self.create_remote_btn(
-            dpad_frame, "OK", "OK", width=5, height=2, bg=THEME["accent"], fg="#ffffff",
-            active_bg=THEME["accent_hover"], font=("Segoe UI", 11, "bold")
+            dpad_frame, "▲", "UP", width=5, height=2, font=("Segoe UI", 11, "bold")
+        ).grid(row=0, column=1, sticky="nsew", padx=3, pady=3)
+        self.create_remote_btn(
+            dpad_frame, "◀", "LEFT", width=5, height=2, font=("Segoe UI", 11, "bold")
+        ).grid(row=1, column=0, sticky="nsew", padx=3, pady=3)
+        self.create_remote_btn(
+            dpad_frame,
+            "OK",
+            "OK",
+            width=5,
+            height=2,
+            bg=THEME["accent"],
+            fg="#ffffff",
+            active_bg=THEME["accent_hover"],
+            font=("Segoe UI", 11, "bold"),
         ).grid(row=1, column=1, sticky="nsew", padx=3, pady=3)
-        # Droite
-        self.create_remote_btn(dpad_frame, "▶", "RIGHT", width=5, height=2, font=("Segoe UI", 11, "bold")).grid(
-            row=1, column=2, sticky="nsew", padx=3, pady=3
-        )
-        # Bas
-        self.create_remote_btn(dpad_frame, "▼", "DOWN", width=5, height=2, font=("Segoe UI", 11, "bold")).grid(
-            row=2, column=1, sticky="nsew", padx=3, pady=3
-        )
+        self.create_remote_btn(
+            dpad_frame, "▶", "RIGHT", width=5, height=2, font=("Segoe UI", 11, "bold")
+        ).grid(row=1, column=2, sticky="nsew", padx=3, pady=3)
+        self.create_remote_btn(
+            dpad_frame, "▼", "DOWN", width=5, height=2, font=("Segoe UI", 11, "bold")
+        ).grid(row=2, column=1, sticky="nsew", padx=3, pady=3)
 
-        # 5. Contrôles Volume et Chaînes (2 colonnes uniformes, parfaitement alignées)
+        # 5. Contrôles Volume et Chaînes (2 colonnes uniformes)
         vc_frame = tk.Frame(parent, bg=THEME["card_bg"])
         vc_frame.pack(fill=tk.X, pady=(0, 12))
         for c in range(2):
             vc_frame.columnconfigure(c, weight=1, uniform="vc_col")
 
-        lbl_v = tk.Label(vc_frame, text="VOLUME", font=("Segoe UI", 8, "bold"), fg=THEME["text_muted"], bg=THEME["card_bg"])
+        lbl_v = tk.Label(
+            vc_frame,
+            text="VOLUME",
+            font=("Segoe UI", 8, "bold"),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
+        )
         lbl_v.grid(row=0, column=0, pady=(0, 4))
 
-        lbl_c = tk.Label(vc_frame, text="CHAÎNE", font=("Segoe UI", 8, "bold"), fg=THEME["text_muted"], bg=THEME["card_bg"])
+        lbl_c = tk.Label(
+            vc_frame,
+            text="CHAÎNE",
+            font=("Segoe UI", 8, "bold"),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
+        )
         lbl_c.grid(row=0, column=1, pady=(0, 4))
 
-        # Ligne 1 : VOL + / CH +
-        self.create_remote_btn(vc_frame, "VOL +", "VOL+", font=("Segoe UI", 9, "bold")).grid(
-            row=1, column=0, sticky="nsew", padx=6, pady=2, ipady=3
-        )
-        self.create_remote_btn(vc_frame, "CH +", "CH+", font=("Segoe UI", 9, "bold")).grid(
-            row=1, column=1, sticky="nsew", padx=6, pady=2, ipady=3
-        )
+        self.create_remote_btn(
+            vc_frame, "VOL +", "VOL+", font=("Segoe UI", 9, "bold")
+        ).grid(row=1, column=0, sticky="nsew", padx=6, pady=2, ipady=3)
+        self.create_remote_btn(
+            vc_frame, "CH +", "CH+", font=("Segoe UI", 9, "bold")
+        ).grid(row=1, column=1, sticky="nsew", padx=6, pady=2, ipady=3)
 
-        # Ligne 2 : MUTE / PROG
-        self.create_remote_btn(vc_frame, "MUTE", "MUTE", font=("Segoe UI", 8, "bold")).grid(
-            row=2, column=0, sticky="nsew", padx=6, pady=2, ipady=3
-        )
-        self.create_remote_btn(vc_frame, "PROG", "PROG", font=("Segoe UI", 8, "bold")).grid(
-            row=2, column=1, sticky="nsew", padx=6, pady=2, ipady=3
-        )
+        self.create_remote_btn(
+            vc_frame, "MUTE", "MUTE", font=("Segoe UI", 8, "bold")
+        ).grid(row=2, column=0, sticky="nsew", padx=6, pady=2, ipady=3)
+        self.create_remote_btn(
+            vc_frame, "PROG", "PROG", font=("Segoe UI", 8, "bold")
+        ).grid(row=2, column=1, sticky="nsew", padx=6, pady=2, ipady=3)
 
-        # Ligne 3 : VOL - / CH -
-        self.create_remote_btn(vc_frame, "VOL -", "VOL-", font=("Segoe UI", 9, "bold")).grid(
-            row=3, column=0, sticky="nsew", padx=6, pady=2, ipady=3
-        )
-        self.create_remote_btn(vc_frame, "CH -", "CH-", font=("Segoe UI", 9, "bold")).grid(
-            row=3, column=1, sticky="nsew", padx=6, pady=2, ipady=3
-        )
+        self.create_remote_btn(
+            vc_frame, "VOL -", "VOL-", font=("Segoe UI", 9, "bold")
+        ).grid(row=3, column=0, sticky="nsew", padx=6, pady=2, ipady=3)
+        self.create_remote_btn(
+            vc_frame, "CH -", "CH-", font=("Segoe UI", 9, "bold")
+        ).grid(row=3, column=1, sticky="nsew", padx=6, pady=2, ipady=3)
 
         # 6. Contrôles Média (4 colonnes uniformes)
         media_frame = tk.Frame(parent, bg=THEME["card_bg"])
@@ -599,15 +500,15 @@ class OrangeTVApp(tk.Tk):
         self.create_remote_btn(media_frame, "⏪", "FBWD", font=("Segoe UI", 9)).grid(
             row=0, column=0, sticky="nsew", padx=2, ipady=3
         )
-        self.create_remote_btn(media_frame, "⏯", "PLAY/PAUSE", font=("Segoe UI", 9)).grid(
-            row=0, column=1, sticky="nsew", padx=2, ipady=3
-        )
+        self.create_remote_btn(
+            media_frame, "⏯", "PLAY/PAUSE", font=("Segoe UI", 9)
+        ).grid(row=0, column=1, sticky="nsew", padx=2, ipady=3)
         self.create_remote_btn(media_frame, "⏩", "FFWD", font=("Segoe UI", 9)).grid(
             row=0, column=2, sticky="nsew", padx=2, ipady=3
         )
-        self.create_remote_btn(media_frame, "● REC", "REC", fg="#ef5350", font=("Segoe UI", 8, "bold")).grid(
-            row=0, column=3, sticky="nsew", padx=2, ipady=3
-        )
+        self.create_remote_btn(
+            media_frame, "● REC", "REC", fg="#ef5350", font=("Segoe UI", 8, "bold")
+        ).grid(row=0, column=3, sticky="nsew", padx=2, ipady=3)
 
         # 7. Pavé Numérique (3 colonnes uniformes, 0 parfaitement centré)
         keypad_frame = tk.Frame(parent, bg=THEME["card_bg"])
@@ -621,7 +522,6 @@ class OrangeTVApp(tk.Tk):
                 keypad_frame, digit, digit, font=("Segoe UI", 10, "bold")
             ).grid(row=i // 3, column=i % 3, sticky="nsew", padx=2, pady=2, ipady=3)
 
-        # Ligne 4 : 0 au centre (col 1), spacers invisibles en col 0 et 2
         spacer_left = tk.Label(keypad_frame, text="", bg=THEME["card_bg"])
         spacer_left.grid(row=3, column=0, sticky="nsew", padx=2, pady=2)
 
@@ -635,54 +535,72 @@ class OrangeTVApp(tk.Tk):
     def build_right_panel(self, parent):
         # 1. Raccourcis TNT
         quick_frame = tk.Frame(
-            parent, bg=THEME["card_bg"], padx=14, pady=12,
-            highlightthickness=1, highlightbackground=THEME["card_border"]
+            parent,
+            bg=THEME["card_bg"],
+            padx=14,
+            pady=12,
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
         )
         quick_frame.pack(fill=tk.X, pady=(0, 10))
 
         tk.Label(
-            quick_frame, text="ZAPPING RAPIDE TNT",
-            font=("Segoe UI", 10, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+            quick_frame,
+            text="ZAPPING RAPIDE TNT",
+            font=("Segoe UI", 10, "bold"),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
         ).pack(anchor=tk.W, pady=(0, 8))
 
-        top_channels = [
+        self.top_channels = [
             ("1 - TF1", "TF1"),
             ("2 - France 2", "FRANCE 2"),
             ("3 - France 3", "FRANCE 3"),
-            ("4 - Canal+", "CANAL+"),
+            ("4 - France 4", "FRANCE 4"),
             ("5 - France 5", "FRANCE 5"),
             ("6 - M6", "M6"),
             ("7 - Arte", "ARTE"),
-            ("8 - C8", "C8"),
             ("9 - W9", "W9"),
             ("10 - TMC", "TMC"),
-            ("15 - BFM TV", "BFM TV"),
-            ("16 - CNews", "CNEWS"),
-            ("21 - L'Équipe", "LA CHAINE L'EQUIPE"),
-            ("27 - Franceinfo", "FRANCEINFO"),
+            ("13 - BFM TV", "BFM TV"),
+            ("14 - CNews", "CNEWS"),
+            ("16 - Franceinfo", "FRANCEINFO"),
+            ("18 - T18", "T18"),
+            ("19 - NOVO19", "NOVO19"),
         ]
 
         grid_chan = tk.Frame(quick_frame, bg=THEME["card_bg"])
         grid_chan.pack(fill=tk.X)
 
         cols = 7
-        for idx, (label, epg_key) in enumerate(top_channels):
+        for idx, (label, epg_key) in enumerate(self.top_channels):
             r = idx // cols
             c = idx % cols
             btn = tk.Button(
-                grid_chan, text=label, font=("Segoe UI", 8),
-                bg=THEME["btn_bg"], fg=THEME["text"],
-                activebackground=THEME["accent"], activeforeground="#ffffff",
-                relief="flat", cursor="hand2", padx=6, pady=4,
-                command=lambda k=epg_key: self.action_zap_channel(k)
+                grid_chan,
+                text=label,
+                font=("Segoe UI", 8),
+                bg=THEME["btn_bg"],
+                fg=THEME["text"],
+                activebackground=THEME["accent"],
+                activeforeground="#ffffff",
+                relief="flat",
+                cursor="hand2",
+                padx=6,
+                pady=4,
+                command=lambda k=epg_key: self.action_zap_channel(k),
             )
             btn.grid(row=r, column=c, padx=3, pady=3, sticky="nsew")
             grid_chan.columnconfigure(c, weight=1)
 
         # 2. Liste complète des chaînes avec recherche
         chan_catalog_card = tk.Frame(
-            parent, bg=THEME["card_bg"], padx=14, pady=12,
-            highlightthickness=1, highlightbackground=THEME["card_border"]
+            parent,
+            bg=THEME["card_bg"],
+            padx=14,
+            pady=12,
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
         )
         chan_catalog_card.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
@@ -690,41 +608,67 @@ class OrangeTVApp(tk.Tk):
         search_header.pack(fill=tk.X, pady=(0, 8))
 
         tk.Label(
-            search_header, text="CATALOGUE DES CHAÎNES",
-            font=("Segoe UI", 10, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+            search_header,
+            text="CATALOGUE DES CHAÎNES",
+            font=("Segoe UI", 10, "bold"),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
         ).pack(side=tk.LEFT)
 
         tk.Label(
-            search_header, text="🔍 Filtrer :", font=("Segoe UI", 9),
-            fg=THEME["text_muted"], bg=THEME["card_bg"]
+            search_header,
+            text="🔍 Filtrer :",
+            font=("Segoe UI", 9),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
         ).pack(side=tk.LEFT, padx=(16, 4))
 
         entry_search = tk.Entry(
-            search_header, textvariable=self.search_chan_var, font=("Segoe UI", 9),
-            bg=THEME["entry_bg"], fg=THEME["text"], insertbackground=THEME["text"],
-            relief="flat", highlightthickness=1, highlightbackground=THEME["card_border"],
-            width=20
+            search_header,
+            textvariable=self.search_chan_var,
+            font=("Segoe UI", 9),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            insertbackground=THEME["text"],
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
+            width=20,
         )
         entry_search.pack(side=tk.LEFT, ipady=3)
         entry_search.bind("<KeyRelease>", lambda e: self.filter_channels())
 
         tk.Label(
-            search_header, text="N° / EPG direct :", font=("Segoe UI", 9),
-            fg=THEME["text_muted"], bg=THEME["card_bg"]
+            search_header,
+            text="N° / EPG direct :",
+            font=("Segoe UI", 9),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
         ).pack(side=tk.LEFT, padx=(12, 4))
 
         entry_direct = tk.Entry(
-            search_header, textvariable=self.direct_chan_var, font=("Segoe UI", 9),
-            bg=THEME["entry_bg"], fg=THEME["text"], insertbackground=THEME["text"],
-            relief="flat", highlightthickness=1, highlightbackground=THEME["card_border"],
-            width=7
+            search_header,
+            textvariable=self.direct_chan_var,
+            font=("Segoe UI", 9),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            insertbackground=THEME["text"],
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
+            width=7,
         )
         entry_direct.pack(side=tk.LEFT, ipady=3)
         entry_direct.bind("<Return>", lambda e: self.action_zap_direct())
 
         btn_zap_direct = self.create_button(
-            search_header, text="Zapper", command=self.action_zap_direct,
-            bg=THEME["accent"], fg="#ffffff", px=7, py=3
+            search_header,
+            text="Zapper",
+            command=self.action_zap_direct,
+            bg=THEME["accent"],
+            fg="#ffffff",
+            px=7,
+            py=3,
         )
         btn_zap_direct.pack(side=tk.LEFT, padx=5)
 
@@ -741,33 +685,49 @@ class OrangeTVApp(tk.Tk):
         self.tree_channels.column("name", width=340, anchor=tk.W)
         self.tree_channels.column("epg_id", width=120, anchor=tk.W)
 
-        tree_scroll = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree_channels.yview)
+        tree_scroll = ttk.Scrollbar(
+            tree_frame, orient=tk.VERTICAL, command=self.tree_channels.yview
+        )
         self.tree_channels.configure(yscrollcommand=tree_scroll.set)
 
         self.tree_channels.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.tree_channels.bind("<Double-1>", lambda e: self.action_zap_selected_tree())
+        self.tree_channels.bind(
+            "<Double-1>", lambda e: self.action_zap_selected_tree()
+        )
 
         tree_action_bar = tk.Frame(chan_catalog_card, bg=THEME["card_bg"], pady=6)
         tree_action_bar.pack(fill=tk.X)
 
         lbl_hint = tk.Label(
-            tree_action_bar, text="💡 Double-cliquez sur une chaîne pour zapper immédiatement.",
-            font=("Segoe UI", 8, "italic"), fg=THEME["text_muted"], bg=THEME["card_bg"]
+            tree_action_bar,
+            text="💡 Double-cliquez sur une chaîne pour zapper immédiatement.",
+            font=("Segoe UI", 8, "italic"),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
         )
         lbl_hint.pack(side=tk.LEFT)
 
         btn_zap_tree = self.create_button(
-            tree_action_bar, text="Zapper sur la sélection",
-            command=self.action_zap_selected_tree, bg=THEME["accent"], fg="#ffffff", px=10, py=4
+            tree_action_bar,
+            text="Zapper sur la sélection",
+            command=self.action_zap_selected_tree,
+            bg=THEME["accent"],
+            fg="#ffffff",
+            px=10,
+            py=4,
         )
         btn_zap_tree.pack(side=tk.RIGHT)
 
     def build_bottom_panel(self):
         bottom_frame = tk.Frame(
-            self, bg=THEME["card_bg"], padx=14, pady=8,
-            highlightthickness=1, highlightbackground=THEME["card_border"]
+            self,
+            bg=THEME["card_bg"],
+            padx=14,
+            pady=8,
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
         )
         bottom_frame.pack(fill=tk.X, side=tk.BOTTOM)
 
@@ -775,49 +735,109 @@ class OrangeTVApp(tk.Tk):
         status_bar.pack(fill=tk.X, pady=(0, 4))
 
         self.lbl_status_icon = tk.Label(
-            status_bar, text="●", font=("Segoe UI", 10),
-            fg=THEME["success"], bg=THEME["card_bg"]
+            status_bar,
+            text="●",
+            font=("Segoe UI", 10),
+            fg=THEME["success"],
+            bg=THEME["card_bg"],
         )
         self.lbl_status_icon.pack(side=tk.LEFT, padx=(0, 6))
 
         lbl_status = tk.Label(
-            status_bar, textvariable=self.status_text_var,
-            font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]
+            status_bar,
+            textvariable=self.status_text_var,
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
         )
         lbl_status.pack(side=tk.LEFT)
 
         btn_clear_log = tk.Button(
-            status_bar, text="Effacer le journal", font=("Segoe UI", 8),
-            bg=THEME["card_bg"], fg=THEME["text_muted"], relief="flat", cursor="hand2",
-            command=self.clear_log
+            status_bar,
+            text="Effacer le journal",
+            font=("Segoe UI", 8),
+            bg=THEME["card_bg"],
+            fg=THEME["text_muted"],
+            relief="flat",
+            cursor="hand2",
+            command=self.clear_log,
         )
         btn_clear_log.pack(side=tk.RIGHT)
 
         self.log_text = tk.Text(
-            bottom_frame, height=4, bg=THEME["console_bg"], fg=THEME["console_text"],
-            font=("Consolas", 8), relief="flat", padx=6, pady=4, wrap=tk.WORD
+            bottom_frame,
+            height=4,
+            bg=THEME["console_bg"],
+            fg=THEME["console_text"],
+            font=("Consolas", 8),
+            relief="flat",
+            padx=6,
+            pady=4,
+            wrap=tk.WORD,
         )
         self.log_text.pack(fill=tk.X)
         self.log_text.config(state=tk.DISABLED)
 
     # --- Helpers Widgets ---
 
-    def create_button(self, parent, text, command, bg=THEME["btn_bg"], fg=THEME["btn_text"], px=8, py=4, font=("Segoe UI", 9)):
-        btn = tk.Button(
-            parent, text=text, font=font, bg=bg, fg=fg,
-            activebackground=THEME["btn_hover"], activeforeground="#ffffff",
-            relief="flat", cursor="hand2", padx=px, pady=py, command=command
-        )
-        return btn
+    def _safe_after(self, callback):
+        try:
+            if self.winfo_exists():
+                self.after(0, lambda: self.winfo_exists() and callback())
+        except tk.TclError:
+            pass
 
-    def create_remote_btn(self, parent, text, key_code, width=None, height=None,
-                          bg=THEME["btn_bg"], fg=THEME["btn_text"], active_bg=THEME["btn_hover"],
-                          font=("Segoe UI", 9)):
+    def create_button(
+        self,
+        parent,
+        text,
+        command,
+        bg=THEME["btn_bg"],
+        fg=THEME["btn_text"],
+        px=8,
+        py=4,
+        font=("Segoe UI", 9),
+    ):
+        return tk.Button(
+            parent,
+            text=text,
+            font=font,
+            bg=bg,
+            fg=fg,
+            activebackground=THEME["btn_hover"],
+            activeforeground="#ffffff",
+            relief="flat",
+            cursor="hand2",
+            padx=px,
+            pady=py,
+            command=command,
+        )
+
+    def create_remote_btn(
+        self,
+        parent,
+        text,
+        key_code,
+        width=None,
+        height=None,
+        bg=THEME["btn_bg"],
+        fg=THEME["btn_text"],
+        active_bg=THEME["btn_hover"],
+        font=("Segoe UI", 9),
+    ):
         btn = tk.Button(
-            parent, text=text, font=font,
-            bg=bg, fg=fg, activebackground=active_bg, activeforeground="#ffffff",
-            relief="flat", cursor="hand2", padx=2, pady=2,
-            command=lambda: self.action_send_key(key_code)
+            parent,
+            text=text,
+            font=font,
+            bg=bg,
+            fg=fg,
+            activebackground=active_bg,
+            activeforeground="#ffffff",
+            relief="flat",
+            cursor="hand2",
+            padx=2,
+            pady=2,
+            command=lambda: self.action_send_key(key_code),
         )
         if width is not None:
             btn.config(width=width)
@@ -832,15 +852,20 @@ class OrangeTVApp(tk.Tk):
             return
         self.is_discovering = True
         self.btn_auto_detect.config(state=tk.DISABLED, text="🔍 Détection...")
-        self.set_status("Recherche automatique du décodeur TV sur le réseau...", "working")
-        self.log("Lancement de l'auto-détection (recherche hostname 'tv' et port 8080)...", "info")
+        self.set_status(
+            "Recherche automatique du décodeur TV sur le réseau...", "working"
+        )
+        self.log(
+            "Lancement de l'auto-détection (recherche hostname 'tv' et port 8080)...",
+            "info",
+        )
 
         def task():
             def progress(msg):
-                self.after(0, lambda: self.set_status(msg, "working"))
+                self._safe_after(lambda: self.set_status(msg, "working"))
 
             ip, port, info = discover_decoder_ip(progress_cb=progress)
-            self.after(0, lambda: self._on_decoder_discovered(ip, port, info))
+            self._safe_after(lambda: self._on_decoder_discovered(ip, port, info))
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -850,21 +875,26 @@ class OrangeTVApp(tk.Tk):
 
         if ip:
             self.ip_var.set(ip)
-            self.port_var.set(port or "8080")
+            self.current_port = port or DEFAULT_PORT
             self.client.ip = ip
-            self.client.port = port or "8080"
+            self.client.port = self.current_port
             self.save_config(show_popup=False)
-            msg = f"Décodeur TV trouvé : {ip}:{port} ({info})"
+            msg = f"Décodeur TV trouvé : {ip}:{self.current_port} ({info})"
             self.log(msg, "success")
             self.set_status(f"Décodeur détecté : {ip}", "success")
-            messagebox.showinfo("Décodeur Détecté !", f"Le décodeur TV Orange a été détecté avec succès :\n\n• Adresse IP : {ip}\n• Port : {port}\n• Description : {info}\n\nL'adresse a été automatiquement sauvegardée.")
+            messagebox.showinfo(
+                "Décodeur Détecté !",
+                f"Le décodeur TV Orange a été détecté avec succès :\n\n"
+                f"• Adresse IP : {ip}\n• Port : {self.current_port}\n• Description : {info}\n\n"
+                "L'adresse a été automatiquement sauvegardée.",
+            )
         else:
             self.log("Aucun décodeur TV détecté sur le réseau local.", "error")
             self.set_status("Aucun décodeur TV trouvé automatiquement", "error")
             messagebox.showwarning(
                 "Décodeur Non Détecté",
                 "Impossible de trouver automatiquement le décodeur TV sur le réseau local.\n\n"
-                "Vérifiez que votre décodeur est bien allumé et connecté au même réseau WiFi/Ethernet que cet ordinateur."
+                "Vérifiez que votre décodeur est bien allumé et connecté au même réseau WiFi/Ethernet que cet ordinateur.",
             )
 
     # --- Gestion des Chaînes ---
@@ -874,7 +904,7 @@ class OrangeTVApp(tk.Tk):
         if self.client.epg_ids:
             for name, epg in self.client.epg_ids.items():
                 self.all_channels.append((str(name), str(epg)))
-            
+
             def sort_key(item):
                 name, _ = item
                 if name.isdigit():
@@ -899,7 +929,8 @@ class OrangeTVApp(tk.Tk):
             return
 
         filtered = [
-            (name, epg) for name, epg in self.all_channels
+            (name, epg)
+            for name, epg in self.all_channels
             if query in name.lower() or query in epg.lower()
         ]
         self.display_channels(filtered)
@@ -909,11 +940,15 @@ class OrangeTVApp(tk.Tk):
     def action_send_key(self, key_code):
         mode = self.mode_var.get()
         mode_label = ["court (0)", "enfoncé (1)", "relâché (2)"][mode]
-        self.set_status(f"Envoi de la touche '{key_code}' (mode {mode_label})...", "working")
+        self.set_status(
+            f"Envoi de la touche '{key_code}' (mode {mode_label})...", "working"
+        )
 
         def task():
             success, data, err = self.client.send_key(key_code, mode=mode)
-            self.after(0, lambda: self._on_key_sent(key_code, success, data, err))
+            self._safe_after(
+                lambda: self._on_key_sent(key_code, success, data, err)
+            )
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -933,21 +968,27 @@ class OrangeTVApp(tk.Tk):
 
         def task():
             success, data, err = self.client.change_channel(epg_key)
-            self.after(0, lambda: self._on_channel_changed(epg_key, success, data, err))
+            self._safe_after(
+                lambda: self._on_channel_changed(epg_key, success, data, err)
+            )
 
         threading.Thread(target=task, daemon=True).start()
 
     def action_zap_direct(self):
         val = self.direct_chan_var.get().strip()
         if not val:
-            messagebox.showwarning("Chaîne vide", "Veuillez saisir un numéro ou nom de chaîne.")
+            messagebox.showwarning(
+                "Chaîne vide", "Veuillez saisir un numéro ou nom de chaîne."
+            )
             return
         self.action_zap_channel(val)
 
     def action_zap_selected_tree(self):
         selected = self.tree_channels.selection()
         if not selected:
-            messagebox.showinfo("Sélection", "Veuillez sélectionner une chaîne dans la liste.")
+            messagebox.showinfo(
+                "Sélection", "Veuillez sélectionner une chaîne dans la liste."
+            )
             return
         item = self.tree_channels.item(selected[0])
         chan_name = item["values"][0]
@@ -969,7 +1010,9 @@ class OrangeTVApp(tk.Tk):
 
         def task():
             success, data, err = self.client.get_status()
-            self.after(0, lambda: self._on_status_received(success, data, err))
+            self._safe_after(
+                lambda: self._on_status_received(success, data, err)
+            )
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -980,14 +1023,16 @@ class OrangeTVApp(tk.Tk):
             msg = res.get("message", "ok")
             info_data = res.get("data", {})
 
-            self.log(f"Infos reçues : {json.dumps(res, ensure_ascii=False)}", "success")
+            self.log(
+                f"Infos reçues : {json.dumps(res, ensure_ascii=False)}", "success"
+            )
             self.set_status("État du décodeur récupéré avec succès", "success")
 
             details = [
                 f"Code réponse : {code}",
                 f"Message : {msg}",
                 "",
-                "Données détaillées :"
+                "Données détaillées :",
             ]
             if isinstance(info_data, dict) and info_data:
                 for k, v in info_data.items():
@@ -999,7 +1044,10 @@ class OrangeTVApp(tk.Tk):
         else:
             self.log(f"Erreur récupération état : {err}", "error")
             self.set_status(f"Erreur état : {err}", "error")
-            messagebox.showerror("Erreur de connexion", f"Impossible d'interroger le décodeur :\n\n{err}")
+            messagebox.showerror(
+                "Erreur de connexion",
+                f"Impossible d'interroger le décodeur :\n\n{err}",
+            )
 
     # --- Logs & Status ---
 
@@ -1009,13 +1057,13 @@ class OrangeTVApp(tk.Tk):
             "normal": THEME["text"],
             "working": THEME["warning"],
             "success": THEME["success"],
-            "error": THEME["error"]
+            "error": THEME["error"],
         }
         color = color_map.get(state, THEME["text"])
         self.lbl_status_icon.config(fg=color)
 
     def log(self, text, level="info"):
-        now = datetime.now().strftime("%H:%M:%S")
+        now = datetime.now().astimezone().strftime("%H:%M:%S")
         prefix = f"[{now}] "
 
         self.log_text.config(state=tk.NORMAL)
@@ -1047,20 +1095,38 @@ class ExploreDialog(tk.Toplevel):
         self.scan_thread = None
         self.stop_scan_flag = False
 
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.setup_ui()
+
+    def on_close(self):
+        self.stop_scan_flag = True
+        self.destroy()
+
+    def _safe_after(self, callback):
+        try:
+            if self.winfo_exists():
+                self.after(0, lambda: self.winfo_exists() and callback())
+        except tk.TclError:
+            pass
 
     def setup_ui(self):
         header = tk.Frame(self, bg=THEME["card_bg"], padx=16, pady=12)
         header.pack(fill=tk.X)
 
         tk.Label(
-            header, text="🔬 Explorateur d'API Livebox TV",
-            font=("Segoe UI", 12, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+            header,
+            text="🔬 Explorateur d'API Livebox TV",
+            font=("Segoe UI", 12, "bold"),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
         ).pack(anchor=tk.W)
 
         tk.Label(
-            header, text="Module d'expérimentation pour tester touches, modes et chaînes EPG à l'aveugle (inspiré de exploreTvOrange.py).",
-            font=("Segoe UI", 9), fg=THEME["text_muted"], bg=THEME["card_bg"]
+            header,
+            text="Module d'expérimentation pour tester touches, modes et chaînes EPG à l'aveugle (inspiré de exploreTvOrange.py).",
+            font=("Segoe UI", 9),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
         ).pack(anchor=tk.W, pady=(2, 0))
 
         notebook = ttk.Notebook(self)
@@ -1086,94 +1152,198 @@ class ExploreDialog(tk.Toplevel):
         log_header.pack(fill=tk.X, pady=(0, 4))
 
         tk.Label(
-            log_header, text="Résultats & Réponses API JSON :",
-            font=("Segoe UI", 9, "bold"), fg=THEME["text"], bg=THEME["card_bg"]
+            log_header,
+            text="Résultats & Réponses API JSON :",
+            font=("Segoe UI", 9, "bold"),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
         ).pack(side=tk.LEFT)
 
         tk.Button(
-            log_header, text="Effacer", font=("Segoe UI", 8),
-            bg=THEME["btn_bg"], fg=THEME["text_muted"], relief="flat", cursor="hand2",
-            command=self.clear_log
+            log_header,
+            text="Effacer",
+            font=("Segoe UI", 8),
+            bg=THEME["btn_bg"],
+            fg=THEME["text_muted"],
+            relief="flat",
+            cursor="hand2",
+            command=self.clear_log,
         ).pack(side=tk.RIGHT)
 
         self.console = tk.Text(
-            log_frame, height=9, bg=THEME["console_bg"], fg=THEME["console_text"],
-            font=("Consolas", 9), relief="flat", padx=8, pady=6, wrap=tk.WORD
+            log_frame,
+            height=9,
+            bg=THEME["console_bg"],
+            fg=THEME["console_text"],
+            font=("Consolas", 9),
+            relief="flat",
+            padx=8,
+            pady=6,
+            wrap=tk.WORD,
         )
         self.console.pack(fill=tk.BOTH, expand=True)
 
     def build_tab_keys(self, parent):
-        # Section A: Test unitaire
         sec_unit = tk.LabelFrame(
-            parent, text="Test Unitaire d'une Touche", font=("Segoe UI", 9, "bold"),
-            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+            parent,
+            text="Test Unitaire d'une Touche",
+            font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            padx=12,
+            pady=10,
+            bd=1,
         )
         sec_unit.pack(fill=tk.X, pady=(0, 12))
 
         row1 = tk.Frame(sec_unit, bg=THEME["card_bg"])
         row1.pack(fill=tk.X)
 
-        tk.Label(row1, text="Code Touche :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Label(
+            row1,
+            text="Code Touche :",
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
+        ).pack(side=tk.LEFT, padx=(0, 6))
 
         self.key_entry = tk.Entry(
-            row1, font=("Consolas", 10), width=8,
-            bg=THEME["entry_bg"], fg=THEME["text"], insertbackground=THEME["text"],
-            relief="flat", highlightthickness=1, highlightbackground=THEME["card_border"]
+            row1,
+            font=("Consolas", 10),
+            width=8,
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            insertbackground=THEME["text"],
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground=THEME["card_border"],
         )
         self.key_entry.insert(0, "116")
         self.key_entry.pack(side=tk.LEFT, padx=(0, 12), ipady=2)
 
         self.key_mode_var = tk.StringVar(value="0")
-        tk.Label(row1, text="Mode :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT, padx=(0, 4))
+        tk.Label(
+            row1,
+            text="Mode :",
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
+        ).pack(side=tk.LEFT, padx=(0, 4))
 
-        modes = [("Court (0)", "0"), ("Enfoncer (1)", "1"), ("Relâcher (2)", "2"), ("Long (200ms)", "long")]
+        modes = [
+            ("Court (0)", "0"),
+            ("Enfoncer (1)", "1"),
+            ("Relâcher (2)", "2"),
+            ("Long (200ms)", "long"),
+        ]
         for lbl, val in modes:
             tk.Radiobutton(
-                row1, text=lbl, variable=self.key_mode_var, value=val,
-                bg=THEME["card_bg"], fg=THEME["text"], selectcolor=THEME["card_bg"],
-                activebackground=THEME["card_bg"], activeforeground=THEME["accent"],
-                font=("Segoe UI", 8)
+                row1,
+                text=lbl,
+                variable=self.key_mode_var,
+                value=val,
+                bg=THEME["card_bg"],
+                fg=THEME["text"],
+                selectcolor=THEME["card_bg"],
+                activebackground=THEME["card_bg"],
+                activeforeground=THEME["accent"],
+                font=("Segoe UI", 8),
             ).pack(side=tk.LEFT, padx=3)
 
         btn_send = tk.Button(
-            row1, text="Envoyer", font=("Segoe UI", 9, "bold"),
-            bg=THEME["accent"], fg="#ffffff", activebackground=THEME["accent_hover"],
-            relief="flat", cursor="hand2", padx=10, pady=2,
-            command=self.action_send_single_key
+            row1,
+            text="Envoyer",
+            font=("Segoe UI", 9, "bold"),
+            bg=THEME["accent"],
+            fg="#ffffff",
+            activebackground=THEME["accent_hover"],
+            relief="flat",
+            cursor="hand2",
+            padx=10,
+            pady=2,
+            command=self.action_send_single_key,
         )
         btn_send.pack(side=tk.RIGHT)
 
-        # Section B: Balayeur / Scanner de Touches
         sec_scan = tk.LabelFrame(
-            parent, text="Scanner de Touches (fast_explore)", font=("Segoe UI", 9, "bold"),
-            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+            parent,
+            text="Scanner de Touches (fast_explore)",
+            font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            padx=12,
+            pady=10,
+            bd=1,
         )
         sec_scan.pack(fill=tk.X)
 
         r_range = tk.Frame(sec_scan, bg=THEME["card_bg"])
         r_range.pack(fill=tk.X, pady=(0, 6))
 
-        tk.Label(r_range, text="Plage : de", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
-        self.scan_start_entry = tk.Entry(r_range, width=6, font=("Consolas", 9), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        tk.Label(
+            r_range,
+            text="Plage : de",
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
+        ).pack(side=tk.LEFT)
+        self.scan_start_entry = tk.Entry(
+            r_range,
+            width=6,
+            font=("Consolas", 9),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            relief="flat",
+        )
         self.scan_start_entry.insert(0, "1")
         self.scan_start_entry.pack(side=tk.LEFT, padx=4)
 
-        tk.Label(r_range, text="à :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
-        self.scan_end_entry = tk.Entry(r_range, width=6, font=("Consolas", 9), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        tk.Label(
+            r_range,
+            text="à :",
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
+        ).pack(side=tk.LEFT)
+        self.scan_end_entry = tk.Entry(
+            r_range,
+            width=6,
+            font=("Consolas", 9),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            relief="flat",
+        )
         self.scan_end_entry.insert(0, "100")
         self.scan_end_entry.pack(side=tk.LEFT, padx=4)
 
-        tk.Label(r_range, text="Délai (s) :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT, padx=(10, 4))
-        self.scan_delay_entry = tk.Entry(r_range, width=5, font=("Consolas", 9), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        tk.Label(
+            r_range,
+            text="Délai (s) :",
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
+        ).pack(side=tk.LEFT, padx=(10, 4))
+        self.scan_delay_entry = tk.Entry(
+            r_range,
+            width=5,
+            font=("Consolas", 9),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            relief="flat",
+        )
         self.scan_delay_entry.insert(0, "0.3")
         self.scan_delay_entry.pack(side=tk.LEFT, padx=4)
 
         self.exclude_known_var = tk.BooleanVar(value=True)
         cb = tk.Checkbutton(
-            sec_scan, text="Ignorer les touches déjà répertoriées (keys.json)",
-            variable=self.exclude_known_var, bg=THEME["card_bg"], fg=THEME["text"],
-            selectcolor=THEME["card_bg"], activebackground=THEME["card_bg"],
-            font=("Segoe UI", 8)
+            sec_scan,
+            text="Ignorer les touches déjà répertoriées (keys.json)",
+            variable=self.exclude_known_var,
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            selectcolor=THEME["card_bg"],
+            activebackground=THEME["card_bg"],
+            font=("Segoe UI", 8),
         )
         cb.pack(anchor=tk.W, pady=(0, 8))
 
@@ -1181,73 +1351,149 @@ class ExploreDialog(tk.Toplevel):
         r_btns.pack(fill=tk.X)
 
         self.btn_start_scan = tk.Button(
-            r_btns, text="▶ Démarrer le Scan", font=("Segoe UI", 9, "bold"),
-            bg="#2e7d32", fg="#ffffff", activebackground="#388e3c",
-            relief="flat", cursor="hand2", padx=10, pady=3,
-            command=self.action_start_key_scan
+            r_btns,
+            text="▶ Démarrer le Scan",
+            font=("Segoe UI", 9, "bold"),
+            bg="#2e7d32",
+            fg="#ffffff",
+            activebackground="#388e3c",
+            relief="flat",
+            cursor="hand2",
+            padx=10,
+            pady=3,
+            command=self.action_start_key_scan,
         )
         self.btn_start_scan.pack(side=tk.LEFT, padx=(0, 6))
 
         self.btn_stop_scan = tk.Button(
-            r_btns, text="⏹ Arrêter", font=("Segoe UI", 9, "bold"),
-            bg="#c62828", fg="#ffffff", activebackground="#d32f2f",
-            relief="flat", cursor="hand2", padx=10, pady=3, state=tk.DISABLED,
-            command=self.action_stop_key_scan
+            r_btns,
+            text="⏹ Arrêter",
+            font=("Segoe UI", 9, "bold"),
+            bg="#c62828",
+            fg="#ffffff",
+            activebackground="#d32f2f",
+            relief="flat",
+            cursor="hand2",
+            padx=10,
+            pady=3,
+            state=tk.DISABLED,
+            command=self.action_stop_key_scan,
         )
         self.btn_stop_scan.pack(side=tk.LEFT)
 
         self.scan_status_lbl = tk.Label(
-            r_btns, text="Prêt", font=("Segoe UI", 9), fg=THEME["text_muted"], bg=THEME["card_bg"]
+            r_btns,
+            text="Prêt",
+            font=("Segoe UI", 9),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
         )
         self.scan_status_lbl.pack(side=tk.RIGHT, padx=6)
 
     def build_tab_ops(self, parent):
         sec = tk.LabelFrame(
-            parent, text="Tester une Opération (explore_modes)", font=("Segoe UI", 9, "bold"),
-            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+            parent,
+            text="Tester une Opération (explore_modes)",
+            font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            padx=12,
+            pady=10,
+            bd=1,
         )
         sec.pack(fill=tk.X, pady=(0, 10))
 
         r1 = tk.Frame(sec, bg=THEME["card_bg"])
         r1.pack(fill=tk.X, pady=(0, 8))
 
-        tk.Label(r1, text="Code Opération (-o) :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
-        self.op_entry = tk.Entry(r1, width=8, font=("Consolas", 10), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        tk.Label(
+            r1,
+            text="Code Opération (-o) :",
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
+        ).pack(side=tk.LEFT)
+        self.op_entry = tk.Entry(
+            r1,
+            width=8,
+            font=("Consolas", 10),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            relief="flat",
+        )
         self.op_entry.insert(0, "10")
         self.op_entry.pack(side=tk.LEFT, padx=8)
 
         tk.Button(
-            r1, text="Tester Opération", font=("Segoe UI", 9, "bold"),
-            bg=THEME["accent"], fg="#ffffff", activebackground=THEME["accent_hover"],
-            relief="flat", cursor="hand2", padx=10, pady=2,
-            command=self.action_test_op
+            r1,
+            text="Tester Opération",
+            font=("Segoe UI", 9, "bold"),
+            bg=THEME["accent"],
+            fg="#ffffff",
+            activebackground=THEME["accent_hover"],
+            relief="flat",
+            cursor="hand2",
+            padx=10,
+            pady=2,
+            command=self.action_test_op,
         ).pack(side=tk.LEFT, padx=10)
 
         tk.Label(
-            sec, text="💡 Opérations connues : 1 = Touche télécommande, 9 = Zapping EPG, 10 = Infos décodeur.\nTestez d'autres entiers (ex: 2, 3, 4, 11...) pour sonder les réponses du décodeur.",
-            font=("Segoe UI", 8, "italic"), fg=THEME["text_muted"], bg=THEME["card_bg"], justify=tk.LEFT
+            sec,
+            text="💡 Opérations connues : 1 = Touche télécommande, 9 = Zapping EPG, 10 = Infos décodeur.\n"
+            "Testez d'autres entiers (ex: 2, 3, 4, 11...) pour sonder les réponses du décodeur.",
+            font=("Segoe UI", 8, "italic"),
+            fg=THEME["text_muted"],
+            bg=THEME["card_bg"],
+            justify=tk.LEFT,
         ).pack(anchor=tk.W)
 
     def build_tab_epg(self, parent):
         sec = tk.LabelFrame(
-            parent, text="Tester un Code EPG (explore_epg_ids)", font=("Segoe UI", 9, "bold"),
-            bg=THEME["card_bg"], fg=THEME["text"], padx=12, pady=10, bd=1
+            parent,
+            text="Tester un Code EPG (explore_epg_ids)",
+            font=("Segoe UI", 9, "bold"),
+            bg=THEME["card_bg"],
+            fg=THEME["text"],
+            padx=12,
+            pady=10,
+            bd=1,
         )
         sec.pack(fill=tk.X, pady=(0, 10))
 
         r1 = tk.Frame(sec, bg=THEME["card_bg"])
         r1.pack(fill=tk.X, pady=(0, 8))
 
-        tk.Label(r1, text="Code EPG ID (-e) :", font=("Segoe UI", 9), fg=THEME["text"], bg=THEME["card_bg"]).pack(side=tk.LEFT)
-        self.epg_entry = tk.Entry(r1, width=12, font=("Consolas", 10), bg=THEME["entry_bg"], fg=THEME["text"], relief="flat")
+        tk.Label(
+            r1,
+            text="Code EPG ID (-e) :",
+            font=("Segoe UI", 9),
+            fg=THEME["text"],
+            bg=THEME["card_bg"],
+        ).pack(side=tk.LEFT)
+        self.epg_entry = tk.Entry(
+            r1,
+            width=12,
+            font=("Consolas", 10),
+            bg=THEME["entry_bg"],
+            fg=THEME["text"],
+            relief="flat",
+        )
         self.epg_entry.insert(0, "192")
         self.epg_entry.pack(side=tk.LEFT, padx=8)
 
         tk.Button(
-            r1, text="Tester Zapping EPG", font=("Segoe UI", 9, "bold"),
-            bg=THEME["accent"], fg="#ffffff", activebackground=THEME["accent_hover"],
-            relief="flat", cursor="hand2", padx=10, pady=2,
-            command=self.action_test_epg
+            r1,
+            text="Tester Zapping EPG",
+            font=("Segoe UI", 9, "bold"),
+            bg=THEME["accent"],
+            fg="#ffffff",
+            activebackground=THEME["accent_hover"],
+            relief="flat",
+            cursor="hand2",
+            padx=10,
+            pady=2,
+            command=self.action_test_epg,
         ).pack(side=tk.LEFT, padx=10)
 
     # Actions de test
@@ -1261,10 +1507,16 @@ class ExploreDialog(tk.Toplevel):
 
         def task():
             if m == "long":
-                success, data, err = self.client.send_key_long_press(k, duration=0.2)
+                success, data, err = self.client.send_key_long_press(
+                    k, duration=0.2
+                )
             else:
                 success, data, err = self.client.send_key(k, mode=int(m))
-            self.after(0, lambda: self._show_result(f"Touche {k} (mode {m})", success, data, err))
+            self._safe_after(
+                lambda: self._show_result(
+                    f"Touche {k} (mode {m})", success, data, err
+                )
+            )
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -1277,7 +1529,9 @@ class ExploreDialog(tk.Toplevel):
 
         def task():
             success, data, err = self.client.send_raw_operation(op)
-            self.after(0, lambda: self._show_result(f"Opération {op}", success, data, err))
+            self._safe_after(
+                lambda: self._show_result(f"Opération {op}", success, data, err)
+            )
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -1290,7 +1544,11 @@ class ExploreDialog(tk.Toplevel):
 
         def task():
             success, data, err = self.client.change_channel(epg)
-            self.after(0, lambda: self._show_result(f"Chaîne EPG {epg}", success, data, err))
+            self._safe_after(
+                lambda: self._show_result(
+                    f"Chaîne EPG {epg}", success, data, err
+                )
+            )
 
         threading.Thread(target=task, daemon=True).start()
 
@@ -1300,14 +1558,21 @@ class ExploreDialog(tk.Toplevel):
             end_k = int(self.scan_end_entry.get().strip())
             delay = float(self.scan_delay_entry.get().strip())
         except ValueError:
-            messagebox.showerror("Erreur", "Veuillez renseigner des entiers valides pour la plage et le délai.")
+            messagebox.showerror(
+                "Erreur",
+                "Veuillez renseigner des entiers valides pour la plage et le délai.",
+            )
             return
 
         self.stop_scan_flag = False
         self.btn_start_scan.config(state=tk.DISABLED)
         self.btn_stop_scan.config(state=tk.NORMAL)
-        self.scan_status_lbl.config(text=f"Scan en cours ({start_k} à {end_k})...", fg=THEME["warning"])
-        self.log(f"--- Démarrage du scan des touches de {start_k} à {end_k} (intervalle {delay}s) ---")
+        self.scan_status_lbl.config(
+            text=f"Scan en cours ({start_k} à {end_k})...", fg=THEME["warning"]
+        )
+        self.log(
+            f"--- Démarrage du scan des touches de {start_k} à {end_k} (intervalle {delay}s) ---"
+        )
 
         known_codes = set()
         if self.exclude_known_var.get() and self.client.keys:
@@ -1317,6 +1582,7 @@ class ExploreDialog(tk.Toplevel):
 
         def worker():
             import time
+
             tested_count = 0
             for key_num in range(start_k, end_k + 1):
                 if self.stop_scan_flag:
@@ -1324,22 +1590,36 @@ class ExploreDialog(tk.Toplevel):
                 if key_num in known_codes:
                     continue
 
-                self.after(0, lambda k=key_num: self.scan_status_lbl.config(text=f"Test touche {k}..."))
-                success, data, err = self.client.send_key(key_num, mode=0, timeout=1.5)
-                self.after(0, lambda k=key_num, s=success, d=data, e=err: self._log_scan_result(k, s, d, e))
+                self._safe_after(
+                    lambda k=key_num: self.scan_status_lbl.config(
+                        text=f"Test touche {k}..."
+                    )
+                )
+                success, data, err = self.client.send_key(
+                    key_num, mode=0, timeout=1.5
+                )
+                self._safe_after(
+                    lambda k=key_num, s=success, d=data, e=err: self._log_scan_result(
+                        k, s, d, e
+                    )
+                )
                 tested_count += 1
                 time.sleep(delay)
 
-            self.after(0, lambda: self._on_scan_finished(tested_count))
+            self._safe_after(lambda: self._on_scan_finished(tested_count))
 
         self.scan_thread = threading.Thread(target=worker, daemon=True)
         self.scan_thread.start()
 
     def action_stop_key_scan(self):
         self.stop_scan_flag = True
-        self.scan_status_lbl.config(text="Arrêt en cours...", fg=THEME["warning"])
+        self.scan_status_lbl.config(
+            text="Arrêt en cours...", fg=THEME["warning"]
+        )
 
     def _log_scan_result(self, key_num, success, data, err):
+        if not self.winfo_exists():
+            return
         if success:
             msg = data.get("result", {}).get("message", "ok")
             code = data.get("result", {}).get("responseCode", "?")
@@ -1348,13 +1628,21 @@ class ExploreDialog(tk.Toplevel):
             self.log(f"[Touche {key_num}] -> Échec ({err})")
 
     def _on_scan_finished(self, count):
+        if not self.winfo_exists():
+            return
         self.btn_start_scan.config(state=tk.NORMAL)
         self.btn_stop_scan.config(state=tk.DISABLED)
-        status_txt = "Scan terminé" if not self.stop_scan_flag else "Scan interrompu"
-        self.scan_status_lbl.config(text=f"{status_txt} ({count} testées)", fg=THEME["success"])
+        status_txt = (
+            "Scan terminé" if not self.stop_scan_flag else "Scan interrompu"
+        )
+        self.scan_status_lbl.config(
+            text=f"{status_txt} ({count} testées)", fg=THEME["success"]
+        )
         self.log(f"--- {status_txt} ({count} touches testées) ---")
 
     def _show_result(self, title, success, data, err):
+        if not self.winfo_exists():
+            return
         if success:
             self.log(f"[{title}] SUCCÈS :")
             self.log(json.dumps(data, indent=2, ensure_ascii=False))
@@ -1362,7 +1650,7 @@ class ExploreDialog(tk.Toplevel):
             self.log(f"[{title}] ERREUR : {err}")
 
     def log(self, text):
-        now = datetime.now().strftime("%H:%M:%S")
+        now = datetime.now().astimezone().strftime("%H:%M:%S")
         self.console.insert(tk.END, f"[{now}] {text}\n")
         self.console.see(tk.END)
 

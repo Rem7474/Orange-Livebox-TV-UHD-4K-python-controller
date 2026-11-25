@@ -10,6 +10,9 @@
 include: package:flutter_lints/flutter.yaml
 
 analyzer:
+  errors:
+    # Flutter 3.47+ déprécie package:flutter/material.dart au profit de material_ui.
+    deprecated_member_use: ignore
   language:
     strict-casts: true
     strict-inference: true

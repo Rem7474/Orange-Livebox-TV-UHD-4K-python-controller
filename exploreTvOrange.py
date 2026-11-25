@@ -1,125 +1,113 @@
 """
-Ce module me sert à explorer les possibilités de l'api. Il me permet de trouver à l'aveugle des modes, keys, epg_ids...
-Il nécessite les modules suivants : requests, sys, getopt
-
-Développé et testé pour le décodeur TV UHD 4K Orange :
-	Modèle : Livebox Fibre
-	Version de firmware : 1.12.16
-	Version de firmware Orange : g0-f-fr)
-	
-Développé et tester sur un système connecté au même réseau local que le décodeur TV :
-	Dans cet exemple, l'adresse IP de mon décodeur est fixe et son addresse locale est 192.168.1.12
-	La variable globale 'URL' doit être modifiée pour accueillir l'addresse locale de votre décodeur.
-	
-Un grand merci à tous les contributeurs du topic à cette addresse :
-https://communaute.orange.fr/t5/TV-par-ADSL-et-Fibre/API-pour-commander-le-decodeur-TV-depusi-une-tablette/td-p/43443
-
-Je suis loin d'être un expert des technologies utilisées par ce module : il peut présenter des erreurs, être incomplet, etc.
-N'hésitez pas à le modifier, l'adapter, le partager, et l'utiliser quel que soit le contexte.
-
-Je vous serais reconnaissant de me transmettre les éventuelles améliorations/corrections à y apporter sur le repository github : https://github.com/DalFanajin/Orange-Livebox-TV-UHD-4K-python-controller
-
-Etant donné que le décodeur est exclusivement français, je n'ai pas prévu de traduction anglaise pour cette docstring : si elle est nécessaire, n'hésitez pas à me solliciter.
-This decoder is a french product, so I didn't translate this docstring in english : do not hesitate to ask if you need a translation anyway.
+Ce module permet d'explorer les possibilités de l'API du décodeur TV UHD 4K Orange
+(touches, modes/opérations, codes EPG).
 """
 
-# importing the requests library 
-import requests, sys, getopt, time
+import time
 
-# api-endpoint 
-URL = "http://192.168.1.12:8080/remoteControl/cmd"
+import requests
+
+from livebox_core import OrangeTVClient, load_config
+
+_ip, _port = load_config()
+URL = OrangeTVClient(_ip, _port).get_url()
+REQUEST_TIMEOUT = 3.0
+
 
 def explore_keys():
-	for key in range(1,1000):
-		print("On lance l'opération 1, appui simple, touche %s"%key)
-		PARAMS = {'operation':1, 'key':key, 'mode':0} 
-		
-		r = requests.get(url = URL, params = PARAMS)
-	
-		getFullResult(r.json())
-		
-		waitForUser("Press enter to continue")
-		
-		print("On lance l'opération 1, appui long (200ms), touche %s"%key)
-		print("On appuie")
-		PARAMS = {'operation':1, 'key':key, 'mode':1} 
-		
-		r = requests.get(url = URL, params = PARAMS)
-	
-		getFullResult(r.json())
-		
-		time.sleep(0.2)
-		
-		print("On relache")
-		PARAMS = {'operation':1, 'key':key, 'mode':2} 
-		
-		r = requests.get(url = URL, params = PARAMS)
-	
-		getFullResult(r.json())
-		
-		waitForUser("Press enter to continue")
-		
+    for key in range(1, 1000):
+        print(f"On lance l'opération 1, appui simple, touche {key}")
+        params = {"operation": 1, "key": key, "mode": 0}
+        r = requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+        getFullResult(r.json())
+
+        waitForUser("Press enter to continue")
+
+        print(f"On lance l'opération 1, appui long (200ms), touche {key}")
+        print("On appuie")
+        params = {"operation": 1, "key": key, "mode": 1}
+        r = requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+        getFullResult(r.json())
+
+        time.sleep(0.2)
+
+        print("On relache")
+        params = {"operation": 1, "key": key, "mode": 2}
+        r = requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+        getFullResult(r.json())
+
+        waitForUser("Press enter to continue")
+
+
 def fast_explore_simple_keys_except_list():
-	notin = [116,512,513,514,515,516,517,518,519,520,521,402,403,115,114,113,103,108,105,106,352,158,139,164,168,159,167,393,1,28,72,75,77,80,166,207,208,365,407,408,412,529,582]
-	for key in range(1,1001):
-		if key not in notin :
-			print("On lance l'opération 1, appui simple, touche %s"%key)
-			PARAMS = {'operation':1, 'key':key, 'mode':0} 
-			
-			r = requests.get(url = URL, params = PARAMS)
-		
-			getFullResult(r.json())
-		
-		
+    notin = {
+        116, 512, 513, 514, 515, 516, 517, 518, 519, 520, 521,
+        402, 403, 115, 114, 113, 103, 108, 105, 106, 352, 158,
+        139, 164, 168, 159, 167, 393, 1, 28, 72, 75, 77, 80,
+        166, 207, 208, 365, 407, 408, 412, 529, 582,
+    }
+    for key in range(1, 1001):
+        if key not in notin:
+            print(f"On lance l'opération 1, appui simple, touche {key}")
+            params = {"operation": 1, "key": key, "mode": 0}
+            r = requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+            getFullResult(r.json())
+
+
 def explore_modes():
-	for mode in range(1,1001):
-		print("On lance l'opération %s"%mode)
-		PARAMS = {'operation':mode} 
-		
-		r = requests.get(url = URL, params = PARAMS)
-	
-		if getFullResult(r.json()) == "ok":
-			waitForUser("Press enter to continue")
+    for mode in range(1, 1001):
+        print(f"On lance l'opération {mode}")
+        params = {"operation": mode}
+        r = requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+        if getFullResult(r.json()) == "ok":
+            waitForUser("Press enter to continue")
+
 
 def explore_epg_ids():
-	#Bruteforcé jusqu'à 11000, à reprendre une nuit 
-	for epg_id in range(11000,9999999999):
-		epg_code = (10 - len(str(epg_id))) * '*' + str(epg_id)
-		print("On lance la chaine d'EPG %s"%epg_code)
-		PARAMS = {'operation':9, 'epg_id':epg_id,'uui':1} 
-		
-		loop = True
-		
-		while loop:
-			r = requests.get(url = URL, params = PARAMS)
-		
-			if getFullResult(r.json()) == "ok":
-				if waitForUser("Press enter to continue, some other key to try again") == '':
-					loop = False
-			
-			else :
-				loop = False
-				
+    # Bruteforcé jusqu'à 11000, à reprendre une nuit
+    for epg_id in range(11000, 9999999999):
+        epg_code = (10 - len(str(epg_id))) * "*" + str(epg_id)
+        print(f"On lance la chaine d'EPG {epg_code}")
+        params = {"operation": 9, "epg_id": epg_code, "uui": 1}
+
+        loop = True
+        while loop:
+            r = requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+            if getFullResult(r.json()) == "ok":
+                if waitForUser("Press enter to continue, some other key to try again") == "":
+                    loop = False
+            else:
+                loop = False
+
 
 def trySendingTwoDigitsInARow():
-	PARAMS = {'operation':1, 'key':519, 'mode':1} 
-	requests.get(url = URL, params = PARAMS)
-	
-	PARAMS = {'operation':1, 'key':512, 'mode':0} 
-	requests.get(url = URL, params = PARAMS)
-	
-	PARAMS = {'operation':1, 'key':519, 'mode':2} 
-	requests.get(url = URL, params = PARAMS)
+    params = {"operation": 1, "key": 519, "mode": 1}
+    requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+
+    params = {"operation": 1, "key": 512, "mode": 0}
+    requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+
+    params = {"operation": 1, "key": 519, "mode": 2}
+    requests.get(url=URL, params=params, timeout=REQUEST_TIMEOUT)
+
 
 def getFullResult(data):
-	resultCode = data['result']['responseCode'] 
-	resultMessage = data['result']['message'] 
-	resultData = data['result']['data'] 
-	print("Code réponse:%s\nMessage:%s\nDonnées:%s"%(resultCode, resultMessage,resultData)) 
-	return resultMessage
+    resultCode = data["result"]["responseCode"]
+    resultMessage = data["result"]["message"]
+    resultData = data["result"]["data"]
+    print(f"Code réponse:{resultCode}\nMessage:{resultMessage}\nDonnées:{resultData}")
+    return resultMessage
+
 
 def waitForUser(text):
-	return input(text)
-	
+    return input(text)
+
+
 if __name__ == "__main__":
-	trySendingTwoDigitsInARow()
+    print(
+        "exploreTvOrange.py - Module d'exploration API Livebox TV.\n"
+        f"URL configurée : {URL}\n"
+        "Fonctions disponibles : explore_keys(), fast_explore_simple_keys_except_list(), "
+        "explore_modes(), explore_epg_ids(), trySendingTwoDigitsInARow().\n"
+        "Importez ce module ou utilisez l'onglet 'Exploration' de tvOrangeGui.py."
+    )

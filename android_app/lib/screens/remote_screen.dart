@@ -16,6 +16,16 @@ class RemoteScreen extends StatefulWidget {
 class _RemoteScreenState extends State<RemoteScreen>
     with WidgetsBindingObserver {
   static const _pollInterval = Duration(seconds: 10);
+  static const _stateChangingKeys = <RemoteKey>{
+    RemoteKey.power,
+    RemoteKey.chUp,
+    RemoteKey.chDown,
+    RemoteKey.menu,
+    RemoteKey.direct,
+    RemoteKey.vod,
+    RemoteKey.guide,
+    RemoteKey.back,
+  };
 
   bool _isRefreshing = false;
   bool _showNumpad = false;
@@ -39,7 +49,7 @@ class _RemoteScreenState extends State<RemoteScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refreshStatus();
+      _refreshStatus(interactive: false);
       _startPolling();
     } else {
       _pollTimer?.cancel();
@@ -48,13 +58,16 @@ class _RemoteScreenState extends State<RemoteScreen>
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _refreshStatus());
+    _pollTimer = Timer.periodic(
+      _pollInterval,
+      (_) => _refreshStatus(interactive: false),
+    );
   }
 
-  Future<void> _refreshStatus() async {
+  Future<void> _refreshStatus({bool interactive = true}) async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
-    await context.read<LiveboxService>().getStatus();
+    await context.read<LiveboxService>().getStatus(interactive: interactive);
     if (mounted) setState(() => _isRefreshing = false);
   }
 
@@ -78,11 +91,14 @@ class _RemoteScreenState extends State<RemoteScreen>
         ),
       );
     }
-    if (ok) {
-      unawaited(_refreshStatus());
+    if (ok && _stateChangingKeys.contains(key)) {
+      unawaited(_refreshStatus(interactive: false));
       // Le décodeur met un peu de temps à changer d'état après un Power.
       if (key == RemoteKey.power) {
-        Future.delayed(const Duration(milliseconds: 1500), _refreshStatus);
+        Future.delayed(
+          const Duration(milliseconds: 1500),
+          () => _refreshStatus(interactive: false),
+        );
       }
     }
   }

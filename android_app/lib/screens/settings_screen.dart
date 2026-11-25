@@ -68,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _ipController.dispose();
     _portController.dispose();
+    _discoveryService.dispose();
     super.dispose();
   }
 
@@ -160,14 +161,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _testConnection() async {
     if (_isTesting) return;
+    final ip = _ipController.text.trim();
+    if (ip.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Veuillez saisir une adresse IP valide.'),
+            backgroundColor: Colors.redAccent,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isTesting = true;
       _testResult = null;
     });
 
     // Forcer la sauvegarde avant le test
-    await _service.storage.setIp(_ipController.text.trim());
-    await _service.storage.setPort(_portController.text.trim());
+    final port = _portController.text.trim();
+    await _service.storage.setIp(ip);
+    await _service.storage.setPort(port.isEmpty ? '8080' : port);
 
     final status = await _service.getStatus();
 

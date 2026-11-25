@@ -94,14 +94,10 @@ class DiscoveryService {
       );
       for (final iface in interfaces) {
         for (final addr in iface.addresses) {
-          if (addr.address.startsWith('192.168.') ||
-              addr.address.startsWith('10.') ||
-              addr.address.startsWith('172.')) {
+          if (_isPrivateIpv4(addr.address)) {
             final parts = addr.address.split('.');
-            if (parts.length == 4) {
-              localSubnet = '${parts[0]}.${parts[1]}.${parts[2]}';
-              break;
-            }
+            localSubnet = '${parts[0]}.${parts[1]}.${parts[2]}';
+            break;
           }
         }
         if (localSubnet != null) break;
@@ -141,10 +137,7 @@ class DiscoveryService {
           : allIps.length;
       final batch = allIps.sublist(i, end);
       final progress = 0.35 + (0.6 * (i / allIps.length));
-      onProgress?.call(
-        "Scan de $localSubnet.${i + 1} à $localSubnet.$end...",
-        progress,
-      );
+      onProgress?.call('Scan de ${batch.first} à ${batch.last}...', progress);
 
       final futures = batch.map((ip) => probeDevice(ip, source: 'Scan réseau'));
       final results = await Future.wait(futures);
@@ -200,6 +193,22 @@ class DiscoveryService {
     } catch (_) {}
     return null;
   }
+
+  void dispose() {
+    _client.close();
+  }
+}
+
+bool _isPrivateIpv4(String ip) {
+  final parts = ip.split('.');
+  if (parts.length != 4) return false;
+  final first = int.tryParse(parts[0]);
+  final second = int.tryParse(parts[1]);
+  if (first == null || second == null) return false;
+  if (first == 10) return true;
+  if (first == 192 && second == 168) return true;
+  if (first == 172 && second >= 16 && second <= 31) return true;
+  return false;
 }
 
 /// Compare deux adresses IPv4 numériquement (et non lexicographiquement),

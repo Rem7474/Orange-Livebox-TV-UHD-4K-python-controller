@@ -38,6 +38,10 @@ jobs:
         run: |
           pip install --only-binary :all: -r requirements-dev.txt
 
+      - name: Analyse statique (Ruff)
+        run: |
+          ruff check --extend-exclude scripts .
+
       - name: Exécution des tests unitaires
         run: |
           pytest -v tests/

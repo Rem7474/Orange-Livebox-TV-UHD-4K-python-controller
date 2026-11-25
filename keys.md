@@ -38,7 +38,7 @@ CODE_INT | CODE_STR | Description | Commentaire
 407 | YOUTUBE - RIGHT | Simule l'action de la touche droite sur l'application Youtube | A voir, j'ai peut être mal interprêté l'action du bouton
 408 | APPAIRAGE | Lance l'écran d'appairage de la télécommande | N'existe pas sur la télécommande !
 412 | YOUTUBE - LEFT | Simule l'action de la touche gauche sur l'application Youtube | A voir, j'ai peut être mal interprêté l'action du bouton
-512 |  | Simule la touche 0 de la télécommande | 
+512 | 0 | Simule la touche 0 de la télécommande | 
 513 | 1 | Simule la touche 1 de la télécommande | 
 514 | 2 | Simule la touche 2 de la télécommande | 
 515 | 3 | Simule la touche 3 de la télécommande | 

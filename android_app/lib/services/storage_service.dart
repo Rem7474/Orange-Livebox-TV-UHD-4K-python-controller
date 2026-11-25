@@ -7,6 +7,15 @@ class StorageService {
 
   static const String defaultIp = '192.168.1.15';
   static const String defaultPort = '8080';
+  static const List<String> defaultFavorites = [
+    '192',
+    '4',
+    '80',
+    '34',
+    '47',
+    '118',
+    '111',
+  ];
 
   Future<String> getIp() async {
     final prefs = await SharedPreferences.getInstance();
@@ -20,25 +29,27 @@ class StorageService {
 
   Future<String> getPort() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyPort) ?? defaultPort;
+    final port = prefs.getString(_keyPort);
+    return (port == null || port.isEmpty) ? defaultPort : port;
   }
 
   Future<void> setPort(String port) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyPort, port.trim());
+    final trimmed = port.trim();
+    await prefs.setString(_keyPort, trimmed.isEmpty ? defaultPort : trimmed);
   }
 
   Future<List<String>> getFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getStringList(_keyFavorites) ??
-        ['192', '4', '80', '34', '47', '118', '111'];
+        List<String>.from(defaultFavorites);
   }
 
   Future<void> toggleFavorite(String epgId) async {
     final prefs = await SharedPreferences.getInstance();
-    final favs =
-        prefs.getStringList(_keyFavorites) ??
-        ['192', '4', '80', '34', '47', '118', '111'];
+    final favs = List<String>.from(
+      prefs.getStringList(_keyFavorites) ?? defaultFavorites,
+    );
     if (favs.contains(epgId)) {
       favs.remove(epgId);
     } else {
