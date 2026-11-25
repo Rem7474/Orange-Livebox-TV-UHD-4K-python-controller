@@ -140,3 +140,35 @@ jobs:
           cd android_app
           flutter build appbundle --release
 
+  flutter-windows:
+    name: Flutter Desktop Build (Windows)
+    needs: flutter-test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v4
+
+      - name: Configuration de Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Compilation Flutter Desktop (Windows)
+        shell: pwsh
+        run: |
+          cd android_app
+          flutter create --platforms=windows --project-name android_app .
+          Copy-Item ..\app_icon.ico windows\runner\resources\app_icon.ico -Force
+          (Get-Content windows\runner\main.cpp -Raw) -replace 'android_app', 'Télécommande TV Orange' | Set-Content windows\runner\main.cpp -Encoding UTF8
+          flutter pub get
+          flutter build windows --release
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath ..\TelecommandeTVOrange-Windows.zip -Force
+
+      - name: Sauvegarde de l'artefact Windows Flutter
+        uses: actions/upload-artifact@v4
+        with:
+          name: TelecommandeTVOrange-Windows-CI
+          path: TelecommandeTVOrange-Windows.zip
+          retention-days: 7
+

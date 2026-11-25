@@ -133,3 +133,45 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  release-windows-flutter:
+    name: Build & Release Windows Flutter Desktop
+    needs: release
+    runs-on: windows-latest
+    env:
+      TAG_NAME: ${{ github.event.inputs.tag_name || github.ref_name }}
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Configuration de Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Compilation Flutter Desktop (Windows)
+        shell: pwsh
+        run: |
+          $buildName = $env:TAG_NAME -replace '^v', ''
+          $buildNumber = "${{ github.run_number }}"
+          cd android_app
+          flutter create --platforms=windows --project-name android_app .
+          Copy-Item ..\app_icon.ico windows\runner\resources\app_icon.ico -Force
+          (Get-Content windows\runner\main.cpp -Raw) -replace 'android_app', 'Télécommande TV Orange' | Set-Content windows\runner\main.cpp -Encoding UTF8
+          flutter pub get
+          flutter build windows --release --build-name="$buildName" --build-number="$buildNumber"
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath ..\TelecommandeTVOrange-Windows.zip -Force
+          cd ..
+          $hash = (Get-FileHash -Algorithm SHA256 "TelecommandeTVOrange-Windows.zip").Hash
+          "$hash *TelecommandeTVOrange-Windows.zip" | Out-File -Encoding ascii "TelecommandeTVOrange-Windows.zip.sha256"
+
+      - name: Publication de l'app Windows Flutter sur la Release GitHub
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ github.event.inputs.tag_name || github.ref_name }}
+          files: |
+            TelecommandeTVOrange-Windows.zip
+            TelecommandeTVOrange-Windows.zip.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
